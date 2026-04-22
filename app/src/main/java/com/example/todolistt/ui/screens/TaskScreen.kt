@@ -156,7 +156,7 @@ fun SketchTaskItem(
     onClick: () -> Unit
 ) {
     val dateFormatter = remember { SimpleDateFormat("MMM dd", Locale.getDefault()) }
-    val timeFormatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val timeFormatter = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
 
     Card(
         modifier = Modifier
@@ -431,7 +431,8 @@ fun SketchTimePickerDialog(onDismiss: () -> Unit, onTimeSelected: (Long) -> Unit
     val currentTime = Calendar.getInstance()
     val timePickerState = rememberTimePickerState(
         initialHour = currentTime.get(Calendar.HOUR_OF_DAY),
-        initialMinute = currentTime.get(Calendar.MINUTE)
+        initialMinute = currentTime.get(Calendar.MINUTE),
+        is24Hour = false
     )
 
     AlertDialog(
@@ -452,7 +453,7 @@ fun SketchTimePickerDialog(onDismiss: () -> Unit, onTimeSelected: (Long) -> Unit
 
 @Composable
 fun TimeButton(label: String, time: Long?, onClick: () -> Unit) {
-    val formatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val formatter = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
     OutlinedButton(
         onClick = onClick,
         modifier = Modifier.width(90.dp),
