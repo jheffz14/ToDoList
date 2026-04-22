@@ -3,6 +3,7 @@ package com.example.todolistt.ui.screens
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -10,10 +11,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,8 +43,11 @@ import kotlin.math.min
 @Composable
 fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
     val stats by viewModel.stats.collectAsState()
+    val isDarkMode by viewModel.isDarkMode.collectAsState()
+    val categories by viewModel.categories.collectAsState()
     var timeFilter by remember { mutableStateOf("All") }
     var showTimeFilterMenu by remember { mutableStateOf(false) }
+    var showManageCategoriesGlobal by remember { mutableStateOf(false) }
 
     // Date range for filtering
     var currentYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
@@ -49,20 +58,37 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
     }
 
     Scaffold(
-        containerColor = Color(0xFFF1F3F5), // Light grey background like in the image
-        topBar = {
-            TopAppBar(
-                title = { Text("DASHBOARD", fontWeight = FontWeight.ExtraBold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-            )
+        containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
+            ) {
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onBack,
+                    icon = { Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Tasks") },
+                    label = { Text("Tasks") }
+                )
+                NavigationBarItem(
+                    selected = true,
+                    onClick = { /* Stay here */ },
+                    icon = { Icon(Icons.Outlined.History, contentDescription = "Analytics") },
+                    label = { Text("Analytics") }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = { showManageCategoriesGlobal = true },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                    label = { Text("Settings") }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = { viewModel.toggleTheme() },
+                    icon = { Icon(if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode, contentDescription = "Theme") },
+                    label = { Text("Theme") }
+                )
+            }
         }
     ) { padding ->
         Column(
@@ -72,10 +98,20 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "DASHBOARD",
+                style = MaterialTheme.typography.headlineLarge.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 2.sp,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            )
+
             // Month/Year Filter UI
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Row(
@@ -86,7 +122,7 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = SketchPrimary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("$monthName $currentYear", fontWeight = FontWeight.Bold)
+                        Text("$monthName $currentYear", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                     Row {
                         IconButton(onClick = {
@@ -98,7 +134,7 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                             }
                             viewModel.setDateFilter(currentMonth, currentYear)
                         }) {
-                            Icon(Icons.Default.ChevronLeft, contentDescription = "Prev")
+                            Icon(Icons.Default.ChevronLeft, contentDescription = "Prev", tint = MaterialTheme.colorScheme.onSurface)
                         }
                         IconButton(onClick = {
                             if (currentMonth == 11) {
@@ -109,7 +145,7 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                             }
                             viewModel.setDateFilter(currentMonth, currentYear)
                         }) {
-                            Icon(Icons.Default.ChevronRight, contentDescription = "Next")
+                            Icon(Icons.Default.ChevronRight, contentDescription = "Next", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 }
@@ -132,7 +168,7 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
             // Category Donut Chart Section
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(12.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
@@ -142,11 +178,11 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Open Tasks in Categories", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Open Tasks in Categories", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                         Box {
                             TextButton(onClick = { showTimeFilterMenu = true }) {
-                                Text(timeFilter, color = Color.Gray)
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color.Gray)
+                                Text(timeFilter, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             DropdownMenu(expanded = showTimeFilterMenu, onDismissRequest = { showTimeFilterMenu = false }) {
                                 listOf("In 7 days", "In 30 days", "All").forEach { filter ->
@@ -191,7 +227,7 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
             // Daily Task Bar Chart Section
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(12.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
@@ -201,8 +237,8 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Daily task complete", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text("All", color = Color.Gray, fontSize = 12.sp)
+                        Text("Daily task complete", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("All", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     }
                     
                     Spacer(modifier = Modifier.height(24.dp))
@@ -216,6 +252,14 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
             
             Spacer(modifier = Modifier.height(24.dp))
         }
+
+        if (showManageCategoriesGlobal) {
+            ManageCategoriesDialog(
+                categories = categories,
+                onDismiss = { showManageCategoriesGlobal = false },
+                onDelete = { viewModel.deleteCategory(it) }
+            )
+        }
     }
 }
 
@@ -224,15 +268,15 @@ fun StatCardImproved(label: String, value: String, modifier: Modifier = Modifier
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(value, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black)
-            Text(label, fontSize = 12.sp, color = Color.Gray)
+            Text(value, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+            Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -274,37 +318,55 @@ fun CategoryLegend(label: String, value: String, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(modifier = Modifier.size(12.dp).background(color, RoundedCornerShape(2.dp)))
         Spacer(modifier = Modifier.width(8.dp))
-        Text(label, fontSize = 14.sp, color = Color.DarkGray)
+        Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
         Spacer(modifier = Modifier.width(4.dp))
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
 @Composable
 fun BarChart(data: List<Pair<String, Int>>, modifier: Modifier = Modifier) {
     val maxVal = (data.maxByOrNull { it.second }?.second ?: 1).coerceAtLeast(1)
+    var selectedBarIndex by remember { mutableStateOf<Int?>(null) }
     
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Bottom
     ) {
-        data.forEach { (day, count) ->
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        data.forEachIndexed { index, (day, count) ->
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable { selectedBarIndex = index }
+            ) {
+                if (selectedBarIndex == index) {
+                    Text(
+                        text = count.toString(),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SketchPrimary
+                    )
+                }
                 val barHeight = (count.toFloat() / maxVal)
                 Box(
                     modifier = Modifier
                         .width(24.dp)
                         .fillMaxHeight(barHeight.coerceAtLeast(0.05f))
                         .background(
-                            if (count > 0) Color(0xFF4C6EF5) else Color(0xFFD0EBFF),
+                            if (selectedBarIndex == index) SketchPrimary 
+                            else if (count > 0) Color(0xFF4C6EF5) 
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
                             RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
                         )
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(day, fontSize = 10.sp, color = Color.Gray)
+                Text(
+                    day, 
+                    fontSize = 10.sp, 
+                    color = if (selectedBarIndex == index) SketchPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (selectedBarIndex == index) FontWeight.Bold else FontWeight.Normal
+                )
             }
         }
     }
 }
-

@@ -47,6 +47,7 @@ class TaskViewModel(
         _selectedStatus
     ) { tasks, query, category, status ->
         tasks.filter { task ->
+            !task.isArchived &&
             (query.isEmpty() || task.title.contains(query, ignoreCase = true) || (task.subcategory?.contains(query, ignoreCase = true) ?: false)) &&
             (category == null || task.category == category) &&
             (status == null || task.status == status)
@@ -128,7 +129,6 @@ class TaskViewModel(
 
         val completed = filteredTasks.count { it.status == TaskStatus.COMPLETED }
         val pending = filteredTasks.count { it.status == TaskStatus.PENDING }
-        val ongoing = filteredTasks.count { it.status == TaskStatus.ONGOING }
         val total = filteredTasks.size
         val completionRate = if (total > 0) completed.toFloat() / total else 0f
         
@@ -172,7 +172,7 @@ class TaskViewModel(
             totalTasks = total,
             completedTasks = completed,
             pendingTasks = pending,
-            ongoingTasks = ongoing,
+            ongoingTasks = 0,
             completionRate = completionRate,
             completedToday = completedToday,
             categoryDistribution = categoryDistribution,
@@ -196,6 +196,7 @@ class TaskViewModel(
         subcategory: String? = null,
         priority: Priority = Priority.MEDIUM,
         targetDate: Long? = null,
+        targetEndDate: Long? = null,
         targetTime: Long? = null,
         startTime: Long? = null,
         endTime: Long? = null
@@ -215,6 +216,7 @@ class TaskViewModel(
                 priority = priority,
                 status = TaskStatus.PENDING,
                 targetDate = targetDate,
+                targetEndDate = targetEndDate,
                 targetTime = targetTime,
                 startTime = startTime,
                 endTime = endTime
@@ -244,8 +246,30 @@ class TaskViewModel(
         }
     }
 
+    fun archiveTask(task: Task) {
+        viewModelScope.launch {
+            repository.update(task.copy(isArchived = true))
+        }
+    }
+
     fun setCategoryFilter(category: String?) {
         _selectedCategory.value = category
+    }
+
+    fun deleteCompletedTasks() {
+        viewModelScope.launch {
+            val allTasks = repository.allTasks.first()
+            allTasks.filter { it.status == TaskStatus.COMPLETED }.forEach {
+                repository.delete(it)
+            }
+        }
+    }
+
+    fun deleteAllTasks() {
+        viewModelScope.launch {
+            val allTasks = repository.allTasks.first()
+            allTasks.forEach { repository.delete(it) }
+        }
     }
 
     fun setStatusFilter(status: TaskStatus?) {
