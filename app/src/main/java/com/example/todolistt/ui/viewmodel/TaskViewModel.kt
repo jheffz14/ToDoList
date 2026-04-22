@@ -38,6 +38,15 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         initialValue = emptyList()
     )
 
+    val categories: StateFlow<List<String>> = repository.allTasks
+        .combine(MutableStateFlow(listOf("Personal", "Work", "Wishlist", "Checklist", "Others"))) { tasks, defaultCategories ->
+            (defaultCategories + tasks.map { it.category }).distinct().filter { it.isNotBlank() }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = listOf("Personal", "Work", "Wishlist", "Checklist", "Others")
+        )
+
     val stats: StateFlow<TaskStats> = repository.allTasks
         .combine(_selectedCategory) { tasks, _ ->
             calculateStats(tasks)
@@ -79,7 +88,9 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         subcategory: String? = null,
         priority: Priority = Priority.MEDIUM,
         targetDate: Long? = null,
-        targetTime: Long? = null
+        targetTime: Long? = null,
+        startTime: Long? = null,
+        endTime: Long? = null
     ) {
         viewModelScope.launch {
             repository.insert(Task(
@@ -90,7 +101,9 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                 priority = priority,
                 status = TaskStatus.PENDING,
                 targetDate = targetDate,
-                targetTime = targetTime
+                targetTime = targetTime,
+                startTime = startTime,
+                endTime = endTime
             ))
         }
     }

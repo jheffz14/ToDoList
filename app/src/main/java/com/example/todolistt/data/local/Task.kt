@@ -23,6 +23,8 @@ data class Task(
     val status: TaskStatus = TaskStatus.PENDING,
     val targetDate: Long? = null,
     val targetTime: Long? = null, // Store as milliseconds from start of day
+    val startTime: Long? = null, // Store as milliseconds from start of day
+    val endTime: Long? = null,   // Store as milliseconds from start of day
     val audioPath: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val isCompleted: Boolean = false // Keep for backward compatibility or use status instead
