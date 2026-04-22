@@ -10,8 +10,8 @@ import com.example.todolistt.data.local.TaskStatus
 import com.example.todolistt.data.repository.CategoryRepository
 import com.example.todolistt.data.repository.TaskRepository
 import com.example.todolistt.data.repository.ThemeRepository
-import java.util.Calendar
-import java.util.Date
+import java.text.SimpleDateFormat
+import java.util.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +31,9 @@ class TaskViewModel(
     
     private val _selectedCategory = MutableStateFlow<String?>(null)
     val selectedCategory: StateFlow<String?> = _selectedCategory
+
+    private val _selectedMonth = MutableStateFlow(Calendar.getInstance().get(Calendar.MONTH))
+    private val _selectedYear = MutableStateFlow(Calendar.getInstance().get(Calendar.YEAR))
 
     private val _selectedStatus = MutableStateFlow<TaskStatus?>(null)
 
@@ -95,18 +98,38 @@ class TaskViewModel(
         }
     }
 
-    val stats: StateFlow<TaskStats> = repository.allTasks
-        .combine(_selectedCategory) { tasks, _ ->
-            calculateStats(tasks)
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = TaskStats()
-        )
+    val stats: StateFlow<TaskStats> = combine(
+        repository.allTasks,
+        _selectedCategory,
+        _selectedMonth,
+        _selectedYear
+    ) { tasks, _, month, year ->
+        calculateStats(tasks, month, year)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = TaskStats()
+    )
 
-    private fun calculateStats(tasks: List<Task>): TaskStats {
-        val completed = tasks.count { it.status == TaskStatus.COMPLETED }
-        val total = tasks.size
+    fun setDateFilter(month: Int, year: Int) {
+        _selectedMonth.value = month
+        _selectedYear.value = year
+    }
+
+    private fun calculateStats(tasks: List<Task>, filterMonth: Int, filterYear: Int): TaskStats {
+        val calendar = Calendar.getInstance()
+        
+        val filteredTasks = tasks.filter { task ->
+            calendar.timeInMillis = task.createdAt
+            val taskMonth = calendar.get(Calendar.MONTH)
+            val taskYear = calendar.get(Calendar.YEAR)
+            taskMonth == filterMonth && taskYear == filterYear
+        }
+
+        val completed = filteredTasks.count { it.status == TaskStatus.COMPLETED }
+        val pending = filteredTasks.count { it.status == TaskStatus.PENDING }
+        val ongoing = filteredTasks.count { it.status == TaskStatus.ONGOING }
+        val total = filteredTasks.size
         val completionRate = if (total > 0) completed.toFloat() / total else 0f
         
         val today = Calendar.getInstance().apply {
@@ -114,18 +137,56 @@ class TaskViewModel(
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+        }
         
-        val completedToday = tasks.count { 
-            it.status == TaskStatus.COMPLETED && it.createdAt >= today 
+        val completedToday = filteredTasks.count { 
+            it.status == TaskStatus.COMPLETED && it.createdAt >= today.timeInMillis 
+        }
+
+        // Category Distribution (for open tasks)
+        val categoryDistribution = filteredTasks.filter { it.status != TaskStatus.COMPLETED }
+            .groupBy { it.category }
+            .mapValues { it.value.size }
+
+        // Daily Completion for the last 7 days
+        val dateFormat = SimpleDateFormat("EEE", Locale.getDefault())
+        val dailyCompletion = (0..6).reversed().map { daysAgo ->
+            val date = Calendar.getInstance().apply {
+                add(Calendar.DAY_OF_YEAR, -daysAgo)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val nextDate = (date.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
+            
+            val count = tasks.count { 
+                it.status == TaskStatus.COMPLETED && 
+                it.createdAt >= date.timeInMillis && 
+                it.createdAt < nextDate.timeInMillis 
+            }
+            dateFormat.format(date.time) to count
         }
 
         return TaskStats(
             totalTasks = total,
             completedTasks = completed,
+            pendingTasks = pending,
+            ongoingTasks = ongoing,
             completionRate = completionRate,
-            completedToday = completedToday
+            completedToday = completedToday,
+            categoryDistribution = categoryDistribution,
+            dailyCompletion = dailyCompletion
         )
+    }
+
+    fun updateTaskStatus(task: Task, newStatus: TaskStatus) {
+        viewModelScope.launch {
+            repository.update(task.copy(
+                status = newStatus,
+                isCompleted = newStatus == TaskStatus.COMPLETED
+            ))
+        }
     }
 
     fun addTask(

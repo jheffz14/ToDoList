@@ -25,9 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.example.todolistt.data.local.Priority
 import com.example.todolistt.data.local.Task
 import com.example.todolistt.data.local.TaskStatus
-import com.example.todolistt.ui.theme.SketchBlack
 import com.example.todolistt.ui.theme.SketchError
-import com.example.todolistt.ui.theme.SketchPaper
 import com.example.todolistt.ui.theme.SketchPrimary
 import com.example.todolistt.ui.viewmodel.TaskViewModel
 import java.text.SimpleDateFormat
@@ -35,7 +33,7 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TaskScreen(viewModel: TaskViewModel) {
+fun TaskScreen(viewModel: TaskViewModel, onNavigateToDashboard: () -> Unit) {
     val tasks by viewModel.tasks.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
@@ -63,6 +61,9 @@ fun TaskScreen(viewModel: TaskViewModel) {
                         )
                     )
                     Row {
+                        IconButton(onClick = onNavigateToDashboard) {
+                            Icon(Icons.Default.BarChart, contentDescription = "Dashboard")
+                        }
                         IconButton(onClick = { showManageCategoriesGlobal = true }) {
                             Icon(Icons.Default.Settings, contentDescription = "Settings")
                         }
@@ -158,7 +159,7 @@ fun TaskScreen(viewModel: TaskViewModel) {
                 items(tasks) { task ->
                     SketchTaskItem(
                         task = task,
-                        onToggleCompletion = { viewModel.toggleTaskCompletion(task) },
+                        onToggleStatus = { newStatus -> viewModel.updateTaskStatus(task, newStatus) },
                         onDelete = { viewModel.deleteTask(task) },
                         onClick = {
                             taskToEdit = task
@@ -212,12 +213,13 @@ fun TaskScreen(viewModel: TaskViewModel) {
 @Composable
 fun SketchTaskItem(
     task: Task,
-    onToggleCompletion: () -> Unit,
+    onToggleStatus: (TaskStatus) -> Unit,
     onDelete: () -> Unit,
     onClick: () -> Unit
 ) {
     val dateFormatter = remember { SimpleDateFormat("MMM dd", Locale.getDefault()) }
     val timeFormatter = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+    var showStatusMenu by remember { mutableStateOf(false) }
 
     val isNear = remember(task.startTime) {
         task.startTime?.let {
@@ -248,12 +250,30 @@ fun SketchTaskItem(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onToggleCompletion) {
-                Icon(
-                    if (task.status == TaskStatus.COMPLETED) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                    contentDescription = "Toggle completion",
-                    tint = if (task.status == TaskStatus.COMPLETED) SketchPrimary else if (isNear && task.status != TaskStatus.COMPLETED) SketchError else MaterialTheme.colorScheme.onBackground
-                )
+            Box {
+                IconButton(onClick = { showStatusMenu = true }) {
+                    val icon = when (task.status) {
+                        TaskStatus.COMPLETED -> Icons.Default.CheckCircle
+                        TaskStatus.ONGOING -> Icons.Default.Pending
+                        else -> Icons.Default.RadioButtonUnchecked
+                    }
+                    Icon(
+                        icon,
+                        contentDescription = "Toggle status",
+                        tint = if (task.status == TaskStatus.COMPLETED) SketchPrimary else if (isNear) SketchError else MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                DropdownMenu(expanded = showStatusMenu, onDismissRequest = { showStatusMenu = false }) {
+                    listOf(TaskStatus.PENDING, TaskStatus.ONGOING, TaskStatus.COMPLETED).forEach { status ->
+                        DropdownMenuItem(
+                            text = { Text(status.name) },
+                            onClick = {
+                                onToggleStatus(status)
+                                showStatusMenu = false
+                            }
+                        )
+                    }
+                }
             }
             
             Column(modifier = Modifier.weight(1f)) {
@@ -346,14 +366,14 @@ fun PriorityBadge(priority: Priority) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaskDialog(
     task: Task? = null,
     onDismiss: () -> Unit,
     onConfirm: (Task) -> Unit,
     onDeleteCategory: ((String) -> Unit)? = null,
-    availableCategories: List<String> = listOf("Personal", "Work", "Meeting")
+    availableCategories: List<String> = listOf("Personal", "Work", "Meeting", "Others")
 ) {
     var title by remember { mutableStateOf(task?.title ?: "") }
     var description by remember { mutableStateOf(task?.description ?: "") }
@@ -596,8 +616,10 @@ fun ManageCategoriesDialog(
     onDismiss: () -> Unit,
     onDelete: (String) -> Unit
 ) {
-    val defaults = listOf("Personal", "Work", "Meeting")
-    val customCategories = categories.filter { !defaults.contains(it) }
+    val defaults = listOf("Personal", "Work", "Meeting", "Others")
+    val customCategories = categories.filter { cat -> 
+        defaults.none { it.equals(cat, ignoreCase = true) } 
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -667,7 +689,7 @@ fun SketchTimePickerDialog(onDismiss: () -> Unit, onTimeSelected: (Long) -> Unit
 @Composable
 fun TimeButton(label: String, time: Long?, onClick: () -> Unit, onClear: () -> Unit) {
     val formatter = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
-    Box {
+    Box(modifier = Modifier.padding(top = 4.dp, end = 4.dp)) {
         OutlinedButton(
             onClick = onClick,
             modifier = Modifier.width(90.dp),
@@ -681,19 +703,20 @@ fun TimeButton(label: String, time: Long?, onClick: () -> Unit, onClear: () -> U
             }
         }
         if (time != null) {
-            IconButton(
-                onClick = onClear,
+            Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 10.dp, y = (-10).dp)
-                    .size(24.dp)
+                    .offset(x = 8.dp, y = (-8).dp)
+                    .size(16.dp)
                     .background(MaterialTheme.colorScheme.surface, CircleShape)
                     .border(1.dp, MaterialTheme.colorScheme.onBackground, CircleShape)
+                    .clickable { onClear() },
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Default.Close,
                     contentDescription = "Clear",
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(10.dp),
                     tint = MaterialTheme.colorScheme.onSurface
                 )
             }

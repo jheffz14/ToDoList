@@ -8,7 +8,7 @@ enum class Priority {
 }
 
 enum class TaskStatus {
-    PENDING, ONGOING, COMPLETED, INCOMING
+    PENDING, ONGOING, COMPLETED
 }
 
 @Entity(tableName = "tasks")

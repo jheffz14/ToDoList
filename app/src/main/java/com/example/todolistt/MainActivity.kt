@@ -15,6 +15,10 @@ import com.example.todolistt.data.local.TaskDatabase
 import com.example.todolistt.data.repository.CategoryRepository
 import com.example.todolistt.data.repository.TaskRepository
 import com.example.todolistt.data.repository.ThemeRepository
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.todolistt.ui.screens.DashboardScreen
 import com.example.todolistt.ui.screens.TaskScreen
 import com.example.todolistt.ui.theme.ToDoListtTheme
 import com.example.todolistt.ui.viewmodel.TaskViewModel
@@ -41,7 +45,19 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    TaskScreen(viewModel = viewModel)
+                    var currentScreen by remember { mutableStateOf("tasks") }
+                    
+                    if (currentScreen == "tasks") {
+                        TaskScreen(
+                            viewModel = viewModel,
+                            onNavigateToDashboard = { currentScreen = "dashboard" }
+                        )
+                    } else {
+                        DashboardScreen(
+                            viewModel = viewModel,
+                            onBack = { currentScreen = "tasks" }
+                        )
+                    }
                 }
             }
         }
