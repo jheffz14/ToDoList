@@ -31,7 +31,7 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
     val stats by viewModel.stats.collectAsState()
 
     Scaffold(
-        containerColor = SketchPaper,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text("DASHBOARD", fontWeight = FontWeight.ExtraBold) },
@@ -43,7 +43,7 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = SketchPaper)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         }
     ) { padding ->
@@ -80,41 +80,43 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
 @Composable
 fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier.border(2.dp, SketchBlack, RoundedCornerShape(12.dp)),
+        modifier = modifier.border(2.dp, MaterialTheme.colorScheme.onBackground, RoundedCornerShape(12.dp)),
         shape = RoundedCornerShape(12.dp),
-        color = Color.White
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 2.dp
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(label, style = MaterialTheme.typography.labelMedium)
-            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = SketchPrimary)
         }
     }
 }
 
 @Composable
 fun SketchChart(title: String, data: List<Float>, modifier: Modifier = Modifier) {
+    val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
     Column(modifier = modifier) {
         Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Spacer(modifier = Modifier.height(8.dp))
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White, RoundedCornerShape(12.dp))
-                .border(2.dp, SketchBlack, RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+                .border(2.dp, MaterialTheme.colorScheme.onBackground, RoundedCornerShape(12.dp))
                 .padding(16.dp)
         ) {
             val width = size.width
             val height = size.height
-            val spacing = width / (data.size - 1)
+            val spacing = if (data.size > 1) width / (data.size - 1) else 0f
 
             // Draw Grid Lines (Sketchy)
             for (i in 0..4) {
                 val y = height - (height / 4 * i)
                 drawLine(
-                    color = Color.LightGray,
+                    color = gridColor,
                     start = Offset(0f, y),
                     end = Offset(width, y),
                     strokeWidth = 1f
@@ -141,7 +143,7 @@ fun SketchChart(title: String, data: List<Float>, modifier: Modifier = Modifier)
                 val x = index * spacing
                 val y = height - (value * height)
                 drawCircle(
-                    color = SketchBlack,
+                    color = SketchPrimary,
                     radius = 4.dp.toPx(),
                     center = Offset(x, y)
                 )

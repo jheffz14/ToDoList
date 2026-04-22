@@ -5,9 +5,10 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [Task::class], version = 6, exportSchema = false)
+@Database(entities = [Task::class, Category::class], version = 7, exportSchema = false)
 abstract class TaskDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
+    abstract fun categoryDao(): CategoryDao
 
     companion object {
         @Volatile
