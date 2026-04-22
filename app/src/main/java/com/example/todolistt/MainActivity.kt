@@ -19,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.example.todolistt.ui.screens.DashboardScreen
+import com.example.todolistt.ui.screens.ArchiveScreen
 import com.example.todolistt.ui.screens.TaskScreen
 import com.example.todolistt.ui.theme.ToDoListtTheme
 import com.example.todolistt.ui.viewmodel.TaskViewModel
@@ -47,16 +48,26 @@ class MainActivity : ComponentActivity() {
                 ) {
                     var currentScreen by remember { mutableStateOf("tasks") }
                     
-                    if (currentScreen == "tasks") {
-                        TaskScreen(
-                            viewModel = viewModel,
-                            onNavigateToDashboard = { currentScreen = "dashboard" }
-                        )
-                    } else {
-                        DashboardScreen(
-                            viewModel = viewModel,
-                            onBack = { currentScreen = "tasks" }
-                        )
+                    when (currentScreen) {
+                        "tasks" -> {
+                            TaskScreen(
+                                viewModel = viewModel,
+                                onNavigateToDashboard = { currentScreen = "dashboard" },
+                                onNavigateToArchive = { currentScreen = "archive" }
+                            )
+                        }
+                        "dashboard" -> {
+                            DashboardScreen(
+                                viewModel = viewModel,
+                                onBack = { currentScreen = "tasks" }
+                            )
+                        }
+                        "archive" -> {
+                            ArchiveScreen(
+                                viewModel = viewModel,
+                                onBack = { currentScreen = "tasks" }
+                            )
+                        }
                     }
                 }
             }

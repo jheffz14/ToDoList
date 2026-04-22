@@ -39,7 +39,11 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun TaskScreen(viewModel: TaskViewModel, onNavigateToDashboard: () -> Unit) {
+fun TaskScreen(
+    viewModel: TaskViewModel, 
+    onNavigateToDashboard: () -> Unit,
+    onNavigateToArchive: () -> Unit
+) {
     val tasks by viewModel.tasks.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
@@ -96,7 +100,10 @@ fun TaskScreen(viewModel: TaskViewModel, onNavigateToDashboard: () -> Unit) {
                             )
                         )
                         Row {
-                            IconButton(onClick = { 
+                            IconButton(onClick = onNavigateToArchive) {
+                            Icon(Icons.Default.Archive, contentDescription = "View Archive")
+                        }
+                        IconButton(onClick = {
                                 showClearConfirmDialog = "Clear all tasks?" to { viewModel.deleteAllTasks() }
                             }) {
                                 Icon(Icons.Default.DeleteSweep, contentDescription = "Clear Data")
@@ -361,11 +368,13 @@ fun SketchTaskItem(
                     .padding(horizontal = 20.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
-                Icon(
-                    Icons.Default.Archive,
-                    contentDescription = "Archive",
-                    tint = Color.White
-                )
+                if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
+                    Icon(
+                        Icons.Default.Archive,
+                        contentDescription = "Archive",
+                        tint = Color.White
+                    )
+                }
             }
         }
     ) {

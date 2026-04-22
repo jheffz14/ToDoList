@@ -104,8 +104,12 @@ class TaskViewModel(
         _selectedCategory,
         _selectedMonth,
         _selectedYear
-    ) { tasks, _, month, year ->
-        calculateStats(tasks, month, year)
+    ) { tasks, category, month, year ->
+        // Exclude archived tasks from analytics and apply category filter if selected
+        val activeTasks = tasks.filter { 
+            !it.isArchived && (category == null || it.category == category) 
+        }
+        calculateStats(activeTasks, month, year)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -249,6 +253,33 @@ class TaskViewModel(
     fun archiveTask(task: Task) {
         viewModelScope.launch {
             repository.update(task.copy(isArchived = true))
+        }
+    }
+
+    val archivedTasks: StateFlow<List<Task>> = repository.allTasks
+        .combine(_searchQuery) { tasks, query ->
+            tasks.filter { task ->
+                task.isArchived &&
+                (query.isEmpty() || task.title.contains(query, ignoreCase = true))
+            }.sortedByDescending { it.createdAt }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    fun restoreTask(task: Task) {
+        viewModelScope.launch {
+            repository.update(task.copy(isArchived = false))
+        }
+    }
+
+    fun deleteArchivedTasks() {
+        viewModelScope.launch {
+            val all = repository.allTasks.first()
+            all.filter { it.isArchived }.forEach {
+                repository.delete(it)
+            }
         }
     }
 
