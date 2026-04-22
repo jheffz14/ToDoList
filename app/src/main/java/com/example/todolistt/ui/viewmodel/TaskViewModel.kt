@@ -7,6 +7,7 @@ import com.example.todolistt.data.local.Priority
 import com.example.todolistt.data.local.Task
 import com.example.todolistt.data.local.TaskStatus
 import com.example.todolistt.data.repository.TaskRepository
+import java.util.Calendar
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +37,40 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+
+    val stats: StateFlow<TaskStats> = repository.allTasks
+        .combine(_selectedCategory) { tasks, _ ->
+            calculateStats(tasks)
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = TaskStats()
+        )
+
+    private fun calculateStats(tasks: List<Task>): TaskStats {
+        val completed = tasks.count { it.status == TaskStatus.COMPLETED }
+        val total = tasks.size
+        val completionRate = if (total > 0) completed.toFloat() / total else 0f
+        
+        // Simple daily/monthly logic for demo
+        val today = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        
+        val completedToday = tasks.count { 
+            it.status == TaskStatus.COMPLETED && it.createdAt >= today 
+        }
+
+        return TaskStats(
+            totalTasks = total,
+            completedTasks = completed,
+            completionRate = completionRate,
+            completedToday = completedToday
+        )
+    }
 
     fun addTask(
         title: String,

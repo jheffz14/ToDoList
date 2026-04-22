@@ -17,7 +17,7 @@ private val SketchColorScheme = lightColorScheme(
 )
 
 @Composable
-fun ToDoListTheme(
+fun ToDoListtTheme(
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
