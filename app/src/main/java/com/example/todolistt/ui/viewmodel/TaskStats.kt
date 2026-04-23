@@ -1,5 +1,7 @@
 package com.example.todolistt.ui.viewmodel
 
+import com.example.todolistt.data.local.RecurrenceType
+
 data class TaskStats(
     val totalTasks: Int = 0,
     val completedTasks: Int = 0,
@@ -8,5 +10,6 @@ data class TaskStats(
     val completionRate: Float = 0f,
     val completedToday: Int = 0,
     val categoryDistribution: Map<String, Int> = emptyMap(),
-    val dailyCompletion: List<Pair<String, Int>> = emptyList()
+    val dailyCompletion: List<Pair<String, Int>> = emptyList(),
+    val recurrenceDistribution: Map<RecurrenceType, Int> = emptyMap()
 )

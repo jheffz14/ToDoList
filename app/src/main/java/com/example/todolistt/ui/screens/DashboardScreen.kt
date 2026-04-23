@@ -179,7 +179,88 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                 )
             }
 
-            // Category Donut Chart Section
+            // Category Details
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Category Status", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    stats.categoryDistribution.forEach { (cat, count) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(cat, color = MaterialTheme.colorScheme.onSurface)
+                            Text("$count Pending", fontWeight = FontWeight.Bold, color = SketchPrimary)
+                        }
+                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                    }
+                    if (stats.categoryDistribution.isEmpty()) {
+                        Text("No pending tasks", fontSize = 12.sp, color = Color.Gray)
+                    }
+                }
+            }
+
+            // Recurrence Details
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Recurrence Overview", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    stats.recurrenceDistribution.forEach { (type, count) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(type.name.lowercase().replaceFirstChar { it.uppercase() }, color = MaterialTheme.colorScheme.onSurface)
+                            Text("$count Tasks", fontWeight = FontWeight.Bold, color = SketchPrimary)
+                        }
+                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                    }
+                    if (stats.recurrenceDistribution.isEmpty()) {
+                        Text("No recurrence tasks", fontSize = 12.sp, color = Color.Gray)
+                    }
+                }
+            }
+
+            // Completion Rate
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Overall Completion", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Box(contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            progress = { stats.completionRate },
+                            modifier = Modifier.size(100.dp),
+                            strokeWidth = 10.dp,
+                            color = SketchPrimary,
+                            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                        )
+                        Text(
+                            text = "${(stats.completionRate * 100).toInt()}%",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Total: ${stats.totalTasks} | Completed: ${stats.completedTasks}", fontSize = 12.sp)
+                }
+            }
+
+            // Category Donut Chart Section (Simplified)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

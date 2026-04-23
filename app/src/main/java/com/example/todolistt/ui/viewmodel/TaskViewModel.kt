@@ -13,6 +13,11 @@ import com.example.todolistt.data.repository.TaskRepository
 import com.example.todolistt.data.repository.ThemeRepository
 import com.example.todolistt.util.ReminderManager
 import android.app.Application
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import com.example.todolistt.widget.TaskWidgetProvider
+import android.content.Intent
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -36,8 +41,8 @@ class TaskViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
     
-    private val _selectedCategories = MutableStateFlow<Set<String>>(emptySet())
-    val selectedCategories: StateFlow<Set<String>> = _selectedCategories
+    private val _selectedCategory = MutableStateFlow<String?>(null)
+    val selectedCategory: StateFlow<String?> = _selectedCategory
 
     private val _selectedMonth = MutableStateFlow(Calendar.getInstance().get(Calendar.MONTH))
     val selectedMonth: StateFlow<Int> = _selectedMonth
@@ -46,6 +51,10 @@ class TaskViewModel(
     val selectedYear: StateFlow<Int> = _selectedYear
 
     private val _selectedStatus = MutableStateFlow<TaskStatus?>(null)
+    val selectedStatus: StateFlow<TaskStatus?> = _selectedStatus
+
+    private val _selectedRecurrence = MutableStateFlow<RecurrenceType?>(null)
+    val selectedRecurrence: StateFlow<RecurrenceType?> = _selectedRecurrence
 
     val isDarkMode: StateFlow<Boolean> = themeRepository.isDarkMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -53,19 +62,20 @@ class TaskViewModel(
     val tasks: StateFlow<List<Task>> = combine(
         repository.allTasks,
         _searchQuery,
-        _selectedCategories,
+        _selectedCategory,
         _selectedStatus,
+        _selectedRecurrence,
         _selectedMonth,
         _selectedYear
     ) { params: Array<Any?> ->
         @Suppress("UNCHECKED_CAST")
         val tasks = params[0] as List<Task>
         val query = params[1] as String
-        @Suppress("UNCHECKED_CAST")
-        val categories = params[2] as Set<String>
+        val category = params[2] as String?
         val status = params[3] as TaskStatus?
-        val month = params[4] as Int
-        val year = params[5] as Int
+        val recurrence = params[4] as RecurrenceType?
+        val month = params[5] as Int
+        val year = params[6] as Int
 
         val calendar = Calendar.getInstance()
         tasks.filter { task ->
@@ -76,9 +86,11 @@ class TaskViewModel(
                               (task.subcategory?.contains(query, ignoreCase = true) ?: false)
             if (!matchesQuery) return@filter false
 
-            if (categories.isNotEmpty() && !categories.contains(task.category)) return@filter false
+            if (category != null && task.category != category) return@filter false
 
             if (status != null && task.status != status) return@filter false
+            
+            if (recurrence != null && task.recurrenceType != recurrence) return@filter false
 
             calendar.timeInMillis = task.createdAt
             val taskMonth = calendar.get(Calendar.MONTH)
@@ -125,27 +137,36 @@ class TaskViewModel(
 
     fun deleteCategory(categoryName: String) {
         viewModelScope.launch {
-            categoryRepository.delete(categoryName)
-            if (_selectedCategories.value.contains(categoryName)) {
-                _selectedCategories.value -= categoryName
+            // Check if any tasks are using this category before deleting
+            val all = repository.allTasks.first()
+            val isUsed = all.any { it.category == categoryName }
+            if (isUsed) {
+                // Show Toast message explaining why it can't be deleted
+                Toast.makeText(
+                    context, 
+                    "Cannot delete category '$categoryName' while it has tasks assigned to it.", 
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@launch
             }
-            val allTasks = repository.allTasks.first()
-            allTasks.filter { it.category == categoryName }.forEach {
-                repository.update(it.copy(category = "Others"))
+            
+            categoryRepository.delete(categoryName)
+            if (_selectedCategory.value == categoryName) {
+                _selectedCategory.value = null
             }
         }
     }
 
     val stats: StateFlow<TaskStats> = combine(
         repository.allTasks,
-        _selectedCategories,
+        _selectedCategory,
         _selectedMonth,
         _selectedYear
-    ) { tasks, categories, month, year ->
+    ) { tasks, category, month, year ->
         val activeTasks = tasks.filter { 
-            !it.isArchived && (categories.isEmpty() || categories.contains(it.category)) 
+            !it.isArchived && (category == null || it.category == category) 
         }
-        calculateStats(activeTasks, month, year)
+        calculateStats(tasks, activeTasks, month, year)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -157,19 +178,19 @@ class TaskViewModel(
         _selectedYear.value = year
     }
 
-    private fun calculateStats(tasks: List<Task>, filterMonth: Int, filterYear: Int): TaskStats {
+    private fun calculateStats(allTasks: List<Task>, filteredTasks: List<Task>, filterMonth: Int, filterYear: Int): TaskStats {
         val calendar = Calendar.getInstance()
         
-        val filteredTasks = tasks.filter { task ->
+        val tasksInMonth = filteredTasks.filter { task ->
             calendar.timeInMillis = task.createdAt
             val taskMonth = calendar.get(Calendar.MONTH)
             val taskYear = calendar.get(Calendar.YEAR)
             taskMonth == filterMonth && taskYear == filterYear
         }
 
-        val completed = filteredTasks.count { it.status == TaskStatus.COMPLETED }
-        val pending = filteredTasks.count { it.status == TaskStatus.PENDING }
-        val total = filteredTasks.size
+        val completed = tasksInMonth.count { it.status == TaskStatus.COMPLETED }
+        val pending = tasksInMonth.count { it.status == TaskStatus.PENDING }
+        val total = tasksInMonth.size
         val completionRate = if (total > 0) completed.toFloat() / total else 0f
         
         val today = Calendar.getInstance().apply {
@@ -179,12 +200,18 @@ class TaskViewModel(
             set(Calendar.MILLISECOND, 0)
         }
         
-        val completedToday = filteredTasks.count { 
+        val completedToday = tasksInMonth.count { 
             it.status == TaskStatus.COMPLETED && it.createdAt >= today.timeInMillis 
         }
 
-        val categoryDistribution = filteredTasks.filter { it.status != TaskStatus.COMPLETED }
+        // Updated Category Stats (Pending count per category)
+        val categoryDistribution = tasksInMonth.filter { it.status == TaskStatus.PENDING }
             .groupBy { it.category }
+            .mapValues { it.value.size }
+
+        // Recurrence Stats
+        val recurrenceStats = tasksInMonth.filter { it.status == TaskStatus.PENDING && it.recurrenceType != RecurrenceType.NONE }
+            .groupBy { it.recurrenceType }
             .mapValues { it.value.size }
 
         val dateFormat = SimpleDateFormat("EEE", Locale.getDefault())
@@ -198,7 +225,7 @@ class TaskViewModel(
             }
             val nextDate = (date.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
             
-            val count = tasks.count { 
+            val count = allTasks.count { 
                 it.status == TaskStatus.COMPLETED && 
                 it.createdAt >= date.timeInMillis && 
                 it.createdAt < nextDate.timeInMillis 
@@ -214,7 +241,8 @@ class TaskViewModel(
             completionRate = completionRate,
             completedToday = completedToday,
             categoryDistribution = categoryDistribution,
-            dailyCompletion = dailyCompletion
+            dailyCompletion = dailyCompletion,
+            recurrenceDistribution = recurrenceStats
         )
     }
 
@@ -235,6 +263,7 @@ class TaskViewModel(
             } else {
                 ReminderManager.scheduleReminder(context, updatedTask)
             }
+            updateWidget()
         }
     }
 
@@ -246,6 +275,7 @@ class TaskViewModel(
             RecurrenceType.DAILY -> calendar.add(Calendar.DAY_OF_YEAR, 1)
             RecurrenceType.WEEKLY -> calendar.add(Calendar.WEEK_OF_YEAR, 1)
             RecurrenceType.MONTHLY -> calendar.add(Calendar.MONTH, 1)
+            RecurrenceType.YEARLY -> calendar.add(Calendar.YEAR, 1)
             else -> return
         }
 
@@ -259,6 +289,7 @@ class TaskViewModel(
         )
         val newId = repository.insert(nextTask).toInt()
         ReminderManager.scheduleReminder(context, nextTask.copy(id = newId))
+        updateWidget()
     }
 
     fun addTask(
@@ -296,6 +327,7 @@ class TaskViewModel(
             )
             val id = repository.insert(task).toInt()
             ReminderManager.scheduleReminder(context, task.copy(id = id))
+            updateWidget()
         }
     }
 
@@ -307,6 +339,7 @@ class TaskViewModel(
             } else {
                 ReminderManager.cancelReminder(context, task)
             }
+            updateWidget()
         }
     }
 
@@ -317,19 +350,41 @@ class TaskViewModel(
                 status = newStatus,
                 isCompleted = newStatus == TaskStatus.COMPLETED
             ))
+            updateWidget()
         }
     }
 
-    fun deleteTask(task: Task) {
+    fun deleteTask(task: Task, deleteFuture: Boolean = false) {
         viewModelScope.launch {
-            repository.delete(task)
-            ReminderManager.cancelReminder(context, task)
+            if (deleteFuture && task.recurrenceType != RecurrenceType.NONE) {
+                val parentId = task.parentTaskId ?: task.id
+                val allTasks = repository.allTasks.first()
+                allTasks.filter { it.id == parentId || it.parentTaskId == parentId }.forEach {
+                    repository.delete(it)
+                    ReminderManager.cancelReminder(context, it)
+                }
+            } else {
+                repository.delete(task)
+                ReminderManager.cancelReminder(context, task)
+            }
+            updateWidget()
         }
+    }
+
+    private fun updateWidget() {
+        val intent = Intent(context, TaskWidgetProvider::class.java).apply {
+            action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+        }
+        val ids = AppWidgetManager.getInstance(context)
+            .getAppWidgetIds(ComponentName(context, TaskWidgetProvider::class.java))
+        intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+        context.sendBroadcast(intent)
     }
 
     fun archiveTask(task: Task) {
         viewModelScope.launch {
             repository.update(task.copy(isArchived = true))
+            updateWidget()
         }
     }
 
@@ -348,6 +403,7 @@ class TaskViewModel(
     fun restoreTask(task: Task) {
         viewModelScope.launch {
             repository.update(task.copy(isArchived = false))
+            updateWidget()
         }
     }
 
@@ -356,21 +412,18 @@ class TaskViewModel(
             val all = repository.allTasks.first()
             all.filter { it.isArchived }.forEach {
                 repository.delete(it)
+                ReminderManager.cancelReminder(context, it)
             }
+            updateWidget()
         }
     }
 
-    fun toggleCategoryFilter(category: String) {
-        val current = _selectedCategories.value
-        if (current.contains(category)) {
-            _selectedCategories.value = current - category
-        } else {
-            _selectedCategories.value = current + category
-        }
+    fun setCategoryFilter(category: String?) {
+        _selectedCategory.value = category
     }
 
     fun clearCategoryFilters() {
-        _selectedCategories.value = emptySet()
+        _selectedCategory.value = null
     }
 
     fun deleteCompletedTasks() {
@@ -379,18 +432,36 @@ class TaskViewModel(
             allTasks.filter { it.status == TaskStatus.COMPLETED }.forEach {
                 repository.delete(it)
             }
+            updateWidget()
         }
     }
 
     fun deleteAllTasks() {
         viewModelScope.launch {
             val allTasks = repository.allTasks.first()
-            allTasks.forEach { repository.delete(it) }
+            allTasks.forEach { 
+                repository.delete(it)
+                ReminderManager.cancelReminder(context, it)
+            }
+            updateWidget()
         }
+    }
+
+    fun clearAllFilters() {
+        _selectedStatus.value = null
+        _selectedRecurrence.value = null
+        _selectedCategory.value = null
+        val now = Calendar.getInstance()
+        _selectedMonth.value = now.get(Calendar.MONTH)
+        _selectedYear.value = now.get(Calendar.YEAR)
     }
 
     fun setStatusFilter(status: TaskStatus?) {
         _selectedStatus.value = status
+    }
+
+    fun setRecurrenceFilter(recurrence: RecurrenceType?) {
+        _selectedRecurrence.value = recurrence
     }
 }
 

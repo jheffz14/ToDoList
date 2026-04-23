@@ -11,23 +11,21 @@ import com.example.todolistt.receiver.TaskReminderReceiver
 
 object ReminderManager {
     fun scheduleReminder(context: Context, task: Task) {
-        val targetTime = task.targetDate ?: return
-        if (targetTime < System.currentTimeMillis()) return
+        val reminderTime = getReminderTime(task)
+        if (reminderTime < System.currentTimeMillis()) return
 
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (!alarmManager.canScheduleExactAlarms()) {
-                // Should ideally prompt user to grant permission
-                // For now, we fall back to setAndAllowWhileIdle which is less precise but doesn't crash
-                scheduleInexact(context, task, alarmManager)
+                scheduleInexact(context, task, alarmManager, reminderTime)
                 return
             }
         }
-        scheduleExact(context, task, alarmManager)
+        scheduleExact(context, task, alarmManager, reminderTime)
     }
 
-    private fun scheduleExact(context: Context, task: Task, alarmManager: AlarmManager) {
+    private fun scheduleExact(context: Context, task: Task, alarmManager: AlarmManager, reminderTime: Long) {
         val intent = Intent(context, TaskReminderReceiver::class.java).apply {
             putExtra("TASK_ID", task.id)
             putExtra("TASK_TITLE", task.title)
@@ -40,18 +38,14 @@ object ReminderManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val reminderTime = getReminderTime(task)
-
-        if (reminderTime > System.currentTimeMillis()) {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                reminderTime,
-                pendingIntent
-            )
-        }
+        alarmManager.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            reminderTime,
+            pendingIntent
+        )
     }
 
-    private fun scheduleInexact(context: Context, task: Task, alarmManager: AlarmManager) {
+    private fun scheduleInexact(context: Context, task: Task, alarmManager: AlarmManager, reminderTime: Long) {
         val intent = Intent(context, TaskReminderReceiver::class.java).apply {
             putExtra("TASK_ID", task.id)
             putExtra("TASK_TITLE", task.title)
@@ -64,15 +58,11 @@ object ReminderManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val reminderTime = getReminderTime(task)
-
-        if (reminderTime > System.currentTimeMillis()) {
-            alarmManager.setAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                reminderTime,
-                pendingIntent
-            )
-        }
+        alarmManager.setAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            reminderTime,
+            pendingIntent
+        )
     }
 
     private fun getReminderTime(task: Task): Long {

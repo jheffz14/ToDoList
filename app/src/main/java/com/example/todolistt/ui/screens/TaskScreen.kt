@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -38,30 +39,43 @@ import com.example.todolistt.ui.viewmodel.TaskViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun TaskScreen(
     viewModel: TaskViewModel, 
     onNavigateToDashboard: () -> Unit,
-    onNavigateToArchive: () -> Unit
+    onNavigateToArchive: () -> Unit,
+    initialTaskId: Int? = null
 ) {
     val tasks by viewModel.tasks.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val selectedCategories by viewModel.selectedCategories.collectAsState()
+    val selectedCategory by viewModel.selectedCategory.collectAsState()
     val selectedMonth by viewModel.selectedMonth.collectAsState()
     val selectedYear by viewModel.selectedYear.collectAsState()
-    
-    val selectedStatusState = remember { mutableStateOf<TaskStatus?>(null) }
+    val selectedStatus by viewModel.selectedStatus.collectAsState()
+    val selectedRecurrence by viewModel.selectedRecurrence.collectAsState()
 
     var showDialog by remember { mutableStateOf(false) }
     var taskToEdit by remember { mutableStateOf<Task?>(null) }
     var showManageCategoriesGlobal by remember { mutableStateOf(false) }
     var showClearConfirmDialog by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
+    var showDeleteRecurrenceDialog by remember { mutableStateOf<Task?>(null) }
     
     val selectedTasks = remember { mutableStateListOf<Int>() }
     var isSelectionMode by remember { mutableStateOf(false) }
+
+    // Handle opening task from widget
+    LaunchedEffect(initialTaskId) {
+        if (initialTaskId != null) {
+            val task = tasks.find { it.id == initialTaskId }
+            if (task != null) {
+                taskToEdit = task
+                showDialog = true
+            }
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -119,66 +133,51 @@ fun TaskScreen(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { viewModel.setSearchQuery(it) },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    placeholder = { Text("Search tasks or categories...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    placeholder = { Text("Search tasks or categories...", fontSize = 14.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
                             IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Clear")
+                                Icon(Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(20.dp))
                             }
                         }
                     },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.onBackground,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.onBackground
-                    )
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
                 )
 
                 // Improved Filter UI
                 LazyRow(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     item {
-                        // Go to Today Button
-                        val today = Calendar.getInstance()
-                        val isTodaySelected = selectedMonth == today.get(Calendar.MONTH) && 
-                                            selectedYear == today.get(Calendar.YEAR)
-                        
-                        FilterChip(
-                            selected = isTodaySelected,
-                            onClick = {
-                                viewModel.setDateFilter(
-                                    today.get(Calendar.MONTH),
-                                    today.get(Calendar.YEAR)
-                                )
-                            },
-                            label = { Text("Today") },
-                            leadingIcon = { Icon(Icons.Default.Today, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                        )
-                    }
-
-                    item {
                         // Month Selector Dropdown
                         var showMonthMenu by remember { mutableStateOf(false) }
-                        val calendar = Calendar.getInstance()
                         Box {
                             FilterChip(
                                 selected = true,
                                 onClick = { showMonthMenu = true },
                                 label = { 
-                                    val monthName = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(
+                                    val monthName = SimpleDateFormat("MMM yyyy", Locale.getDefault()).format(
                                         Calendar.getInstance().apply {
                                             set(Calendar.MONTH, selectedMonth)
                                             set(Calendar.YEAR, selectedYear)
                                         }.time
                                     )
-                                    Text(monthName) 
+                                    Text(monthName, fontSize = 11.sp) 
                                 },
-                                trailingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                                shape = RoundedCornerShape(12.dp)
                             )
                             DropdownMenu(expanded = showMonthMenu, onDismissRequest = { showMonthMenu = false }) {
                                 // Show range: 12 months back to 24 months forward
@@ -209,24 +208,22 @@ fun TaskScreen(
                         var showStatusMenu by remember { mutableStateOf(false) }
                         Box {
                             FilterChip(
-                                selected = selectedStatusState.value != null,
+                                selected = selectedStatus != null,
                                 onClick = { showStatusMenu = true },
-                                label = { Text(selectedStatusState.value?.name ?: "All Status") },
-                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) }
+                                label = { Text(selectedStatus?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "All Status", fontSize = 11.sp) },
+                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                                shape = RoundedCornerShape(12.dp)
                             )
                             DropdownMenu(expanded = showStatusMenu, onDismissRequest = { showStatusMenu = false }) {
                                 DropdownMenuItem(text = { Text("All Status") }, onClick = { 
-                                    selectedStatusState.value = null
                                     viewModel.setStatusFilter(null)
                                     showStatusMenu = false
                                 })
                                 DropdownMenuItem(text = { Text("Pending") }, onClick = { 
-                                    selectedStatusState.value = TaskStatus.PENDING
                                     viewModel.setStatusFilter(TaskStatus.PENDING)
                                     showStatusMenu = false
                                 })
                                 DropdownMenuItem(text = { Text("Completed") }, onClick = { 
-                                    selectedStatusState.value = TaskStatus.COMPLETED
                                     viewModel.setStatusFilter(TaskStatus.COMPLETED)
                                     showStatusMenu = false
                                 })
@@ -235,21 +232,48 @@ fun TaskScreen(
                     }
 
                     item {
-                        // Category Filter Dropdown (Multi-select)
+                        // Recurrence Filter Dropdown
+                        var showRecurrenceMenu by remember { mutableStateOf(false) }
+                        Box {
+                            FilterChip(
+                                selected = selectedRecurrence != null,
+                                onClick = { showRecurrenceMenu = true },
+                                label = { Text(selectedRecurrence?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Recurrence", fontSize = 11.sp) },
+                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            DropdownMenu(expanded = showRecurrenceMenu, onDismissRequest = { showRecurrenceMenu = false }) {
+                                DropdownMenuItem(text = { Text("All Recurrences") }, onClick = { 
+                                    viewModel.setRecurrenceFilter(null)
+                                    showRecurrenceMenu = false
+                                })
+                                RecurrenceType.entries.forEach { type ->
+                                    if (type != RecurrenceType.NONE) {
+                                        DropdownMenuItem(
+                                            text = { Text(type.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                                            onClick = {
+                                                viewModel.setRecurrenceFilter(type)
+                                                showRecurrenceMenu = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        // Category Filter Dropdown (Single-select)
                         var showCategoryMenu by remember { mutableStateOf(false) }
                         Box {
                             FilterChip(
-                                selected = selectedCategories.isNotEmpty(),
+                                selected = selectedCategory != null,
                                 onClick = { showCategoryMenu = true },
                                 label = { 
-                                    val label = when {
-                                        selectedCategories.isEmpty() -> "All Categories"
-                                        selectedCategories.size == 1 -> selectedCategories.first()
-                                        else -> "${selectedCategories.size} Categories"
-                                    }
-                                    Text(label) 
+                                    Text(selectedCategory ?: "Categories", fontSize = 11.sp) 
                                 },
-                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) }
+                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                                shape = RoundedCornerShape(12.dp)
                             )
                             DropdownMenu(
                                 expanded = showCategoryMenu, 
@@ -257,30 +281,40 @@ fun TaskScreen(
                                 modifier = Modifier.widthIn(min = 200.dp)
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("All (Clear Filters)") }, 
+                                    text = { Text("All Categories") }, 
                                     onClick = { 
-                                        viewModel.clearCategoryFilters()
+                                        viewModel.setCategoryFilter(null)
                                         showCategoryMenu = false
                                     },
-                                    leadingIcon = { if (selectedCategories.isEmpty()) Icon(Icons.Default.Check, contentDescription = null) }
+                                    leadingIcon = { if (selectedCategory == null) Icon(Icons.Default.Check, contentDescription = null) }
                                 )
                                 HorizontalDivider()
                                 categories.forEach { category ->
-                                    val isSelected = selectedCategories.contains(category)
+                                    val isSelected = selectedCategory == category
                                     DropdownMenuItem(
                                         text = { Text(category) },
                                         onClick = { 
-                                            viewModel.toggleCategoryFilter(category)
+                                            viewModel.setCategoryFilter(category)
+                                            showCategoryMenu = false
                                         },
                                         leadingIcon = {
-                                            Checkbox(
-                                                checked = isSelected,
-                                                onCheckedChange = { viewModel.toggleCategoryFilter(category) },
-                                                modifier = Modifier.size(24.dp)
-                                            )
+                                            if (isSelected) Icon(Icons.Default.Check, contentDescription = null)
                                         }
                                     )
                                 }
+                            }
+                        }
+                    }
+
+                    if (selectedStatus != null || selectedRecurrence != null || selectedCategory != null) {
+                        item {
+                            TextButton(
+                                onClick = {
+                                    viewModel.clearAllFilters()
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) {
+                                Text("Clear", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -340,12 +374,18 @@ fun TaskScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(tasks) { task ->
+                items(tasks, key = { it.id }) { task ->
                     val isSelected = selectedTasks.contains(task.id)
                     SketchTaskItem(
                         task = task,
                         onToggleStatus = { newStatus -> viewModel.updateTaskStatus(task, newStatus) },
-                        onDelete = { viewModel.deleteTask(task) },
+                        onDelete = { 
+                            if (task.recurrenceType != RecurrenceType.NONE) {
+                                showDeleteRecurrenceDialog = task
+                            } else {
+                                viewModel.deleteTask(task)
+                            }
+                        },
                         onArchive = { viewModel.archiveTask(task) },
                         onClick = {
                             if (isSelectionMode) {
@@ -384,6 +424,33 @@ fun TaskScreen(
             )
         }
 
+        if (showDeleteRecurrenceDialog != null) {
+            AlertDialog(
+                onDismissRequest = { showDeleteRecurrenceDialog = null },
+                title = { Text("Delete Recurring Task") },
+                text = { Text("Do you want to delete only this instance or all future instances of this recurring task?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showDeleteRecurrenceDialog?.let { viewModel.deleteTask(it, deleteFuture = true) }
+                            showDeleteRecurrenceDialog = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                    ) {
+                        Text("Delete All", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showDeleteRecurrenceDialog?.let { viewModel.deleteTask(it, deleteFuture = false) }
+                        showDeleteRecurrenceDialog = null
+                    }) {
+                        Text("Only This")
+                    }
+                }
+            )
+        }
+
         if (showManageCategoriesGlobal) {
             ManageCategoriesDialog(
                 categories = categories,
@@ -411,7 +478,8 @@ fun TaskScreen(
                             updatedTask.targetEndDate,
                             updatedTask.targetTime,
                             updatedTask.startTime,
-                            updatedTask.endTime
+                            updatedTask.endTime,
+                            updatedTask.recurrenceType
                         )
                     } else {
                         viewModel.updateTask(updatedTask)
@@ -437,7 +505,11 @@ fun SketchTaskItem(
     isSelected: Boolean = false
 ) {
     val dateFormatter = remember { SimpleDateFormat("MMM dd", Locale.getDefault()) }
-    val timeFormatter = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+    val timeFormatter = remember { 
+        SimpleDateFormat("h:mm a", Locale.getDefault()).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+    }
     var showStatusMenu by remember { mutableStateOf(false) }
 
     val dismissState = rememberSwipeToDismissBoxState(
@@ -556,10 +628,10 @@ fun SketchTaskItem(
                         if (task.recurrenceType != RecurrenceType.NONE) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(
-                                Icons.Default.Refresh,
-                                contentDescription = "Recurring",
+                                Icons.Default.Sync, // Using Sync icon for recurrence visibility
+                                contentDescription = "Recurring: ${task.recurrenceType.name}",
                                 tint = SketchPrimary,
-                                modifier = Modifier.size(14.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
 
@@ -646,7 +718,7 @@ fun PriorityBadge(priority: Priority) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun TaskDialog(
     task: Task? = null,
@@ -675,13 +747,6 @@ fun TaskDialog(
     var startTime by remember { mutableStateOf(task?.startTime) }
     var endTime by remember { mutableStateOf(task?.endTime) }
     
-    // Automatically set End time to Start time if End is not set yet
-    LaunchedEffect(startTime) {
-        if (startTime != null && endTime == null) {
-            endTime = startTime
-        }
-    }
-    
     var showTimePickerForStart by remember { mutableStateOf(false) }
     var showTimePickerForEnd by remember { mutableStateOf(false) }
 
@@ -693,49 +758,54 @@ fun TaskDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-        title = { Text(if (task == null) "NEW TASK" else "EDIT TASK", fontWeight = FontWeight.ExtraBold, fontSize = 24.sp) },
+        modifier = Modifier.padding(12.dp).fillMaxWidth(), // Reduced padding
+        title = { 
+            Text(
+                if (task == null) "NEW TASK" else "EDIT TASK", 
+                fontWeight = FontWeight.ExtraBold, 
+                fontSize = 20.sp // Reduced from 24sp
+            ) 
+        },
         text = {
             Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()).padding(vertical = 8.dp), 
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier.verticalScroll(rememberScrollState()).padding(vertical = 4.dp), 
+                verticalArrangement = Arrangement.spacedBy(10.dp) // Reduced spacing from 16dp
             ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Task Title") },
-                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Task Title", fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth().height(56.dp), // Reduced from 64dp
                     shape = RoundedCornerShape(12.dp),
-                    textStyle = MaterialTheme.typography.bodyLarge
+                    textStyle = MaterialTheme.typography.bodyMedium // Reduced from bodyLarge
                 )
 
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Category", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        
-                        IconButton(onClick = { /* Already handled by manage dialog logic if needed */ }, modifier = Modifier.size(24.dp)) {
-                            // Icon(Icons.Default.Settings, contentDescription = "Manage Categories", modifier = Modifier.size(16.dp))
-                        }
-                    }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Category", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     
                     OutlinedTextField(
                         value = categorySearchQuery,
                         onValueChange = { categorySearchQuery = it },
-                        placeholder = { Text("Search or select category...", fontSize = 14.sp) },
-                        modifier = Modifier.fillMaxWidth(),
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                        placeholder = { Text("Search category...", fontSize = 11.sp) },
+                        modifier = Modifier.fillMaxWidth().height(48.dp), // Reduced from 52dp
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
                         shape = RoundedCornerShape(12.dp),
-                        singleLine = true
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodySmall
                     )
 
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(vertical = 4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        contentPadding = PaddingValues(vertical = 2.dp)
                     ) {
+                        item {
+                            FilterChip(
+                                selected = isAddingCustomCategory,
+                                onClick = { isAddingCustomCategory = true },
+                                label = { Text("+ Custom", fontSize = 10.sp) },
+                                modifier = Modifier.height(28.dp)
+                            )
+                        }
                         items(filteredCategories) { cat ->
                             FilterChip(
                                 selected = category == cat && !isAddingCustomCategory,
@@ -743,14 +813,8 @@ fun TaskDialog(
                                     category = cat
                                     isAddingCustomCategory = false
                                 },
-                                label = { Text(cat) }
-                            )
-                        }
-                        item {
-                            FilterChip(
-                                selected = isAddingCustomCategory,
-                                onClick = { isAddingCustomCategory = true },
-                                label = { Text("+ Custom") }
+                                label = { Text(cat, fontSize = 10.sp) }, // Reduced font
+                                modifier = Modifier.height(28.dp) // Reduced height
                             )
                         }
                     }
@@ -759,98 +823,126 @@ fun TaskDialog(
                         OutlinedTextField(
                             value = customCategory,
                             onValueChange = { customCategory = it },
-                            label = { Text("Enter Custom Category") },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            label = { Text("Custom Category", fontSize = 11.sp) },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            textStyle = MaterialTheme.typography.bodySmall
                         )
                     }
                 }
 
-                HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
-
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Schedule", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(
-                            onClick = { showFromDatePicker = true },
-                            modifier = Modifier.weight(1f).height(56.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground)
-                        ) {
-                            Icon(Icons.Default.Event, contentDescription = null, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            val dateText = targetDate?.let { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(it)) } ?: "From Date"
-                            Column {
-                                Text("From Date", fontSize = 10.sp, color = Color.Gray)
-                                Text(dateText, fontSize = 14.sp)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Schedule", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedButton(
+                                onClick = { showFromDatePicker = true },
+                                modifier = Modifier.fillMaxWidth().height(44.dp), // Reduced height
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)),
+                                contentPadding = PaddingValues(start = 4.dp, end = 24.dp)
+                            ) {
+                                Icon(Icons.Default.Event, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                val dateText = targetDate?.let { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(it)) } ?: "From"
+                                Column {
+                                    Text("From", fontSize = 7.sp, color = Color.Gray)
+                                    Text(dateText, fontSize = 11.sp)
+                                }
+                            }
+                            if (targetDate != null) {
+                                IconButton(
+                                    onClick = { targetDate = null; targetEndDate = null },
+                                    modifier = Modifier.align(Alignment.CenterEnd).size(24.dp).padding(end = 2.dp)
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(12.dp), tint = Color.Gray)
+                                }
                             }
                         }
                         
-                        OutlinedButton(
-                            onClick = { if (targetDate != null) showToDatePicker = true },
-                            modifier = Modifier.weight(1f).height(56.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, if (targetDate != null) MaterialTheme.colorScheme.onBackground else Color.LightGray.copy(alpha = 0.5f)),
-                            enabled = targetDate != null
-                        ) {
-                            Icon(Icons.Default.Event, contentDescription = null, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            val dateText = targetEndDate?.let { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(it)) } ?: "To Date"
-                            Column {
-                                Text("To Date", fontSize = 10.sp, color = if (targetDate != null) Color.Gray else Color.LightGray)
-                                Text(dateText, fontSize = 14.sp, color = if (targetDate != null) Color.Unspecified else Color.LightGray)
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedButton(
+                                onClick = { if (targetDate != null) showToDatePicker = true },
+                                modifier = Modifier.fillMaxWidth().height(44.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, if (targetDate != null) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else Color.LightGray.copy(alpha = 0.3f)),
+                                enabled = targetDate != null,
+                                contentPadding = PaddingValues(start = 4.dp, end = 24.dp)
+                            ) {
+                                Icon(Icons.Default.Event, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                val dateText = targetEndDate?.let { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(it)) } ?: "To"
+                                Column {
+                                    Text("To", fontSize = 7.sp, color = if (targetDate != null) Color.Gray else Color.LightGray)
+                                    Text(dateText, fontSize = 11.sp, color = if (targetDate != null) Color.Unspecified else Color.LightGray)
+                                }
+                            }
+                            if (targetEndDate != null) {
+                                IconButton(
+                                    onClick = { targetEndDate = null },
+                                    modifier = Modifier.align(Alignment.CenterEnd).size(24.dp).padding(end = 2.dp)
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(12.dp), tint = Color.Gray)
+                                }
                             }
                         }
                     }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TimeButton(
+                        TimeButtonSmall(
                             label = "Start",
                             time = startTime, 
                             onClick = { showTimePickerForStart = true },
-                            onClear = { 
-                                startTime = null 
-                                endTime = null 
-                            },
+                            onClear = { startTime = null },
                             modifier = Modifier.weight(1f)
                         )
-                        TimeButton(
+                        TimeButtonSmall(
                             label = "End",
                             time = endTime, 
-                            onClick = { if (startTime != null) showTimePickerForEnd = true },
+                            onClick = { showTimePickerForEnd = true },
                             onClear = { endTime = null },
-                            enabled = startTime != null,
                             modifier = Modifier.weight(1f)
                         )
                     }
                 }
 
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Priority", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Priority.entries.forEach { p ->
-                            FilterChip(
-                                selected = priority == p,
-                                onClick = { priority = p },
-                                label = { Text(p.name) }
-                            )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Priority", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Priority.entries.forEach { p ->
+                                FilterChip(
+                                    selected = priority == p,
+                                    onClick = { priority = p },
+                                    label = { Text(p.name, fontSize = 9.sp) },
+                                    modifier = Modifier.height(26.dp)
+                                )
+                            }
                         }
                     }
                 }
 
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Recurrence", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Recurrence", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         RecurrenceType.entries.forEach { type ->
-                            FilterChip(
-                                selected = recurrenceType == type,
-                                onClick = { recurrenceType = type },
-                                label = { Text(type.name.lowercase().replaceFirstChar { it.uppercase() }) }
-                            )
+                            if (type != RecurrenceType.NONE) {
+                                FilterChip(
+                                    selected = recurrenceType == type,
+                                    onClick = { 
+                                        recurrenceType = if (recurrenceType == type) RecurrenceType.NONE else type 
+                                    },
+                                    label = { Text(type.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 9.sp) },
+                                    modifier = Modifier.height(26.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -858,10 +950,11 @@ fun TaskDialog(
                 OutlinedTextField(
                     value = subcategory,
                     onValueChange = { subcategory = it },
-                    label = { Text("Subcategory / Notes (Optional)") },
+                    label = { Text("Notes", fontSize = 11.sp) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    minLines = 2
+                    minLines = 1,
+                    textStyle = MaterialTheme.typography.bodySmall
                 )
             }
         },
@@ -887,17 +980,17 @@ fun TaskDialog(
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = SketchPrimary),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.height(48.dp).fillMaxWidth().padding(horizontal = 16.dp)
+                modifier = Modifier.height(44.dp).fillMaxWidth().padding(horizontal = 12.dp)
             ) {
-                Text("SAVE TASK", fontWeight = FontWeight.ExtraBold, color = Color.White)
+                Text("SAVE", fontWeight = FontWeight.ExtraBold, color = Color.White)
             }
         },
         dismissButton = {
             TextButton(
                 onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) { 
-                Text("CANCEL", color = MaterialTheme.colorScheme.onSurfaceVariant) 
+                Text("CANCEL", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     )
@@ -1023,8 +1116,25 @@ fun SketchTimePickerDialog(onDismiss: () -> Unit, onTimeSelected: (Long) -> Unit
                 val cal = Calendar.getInstance().apply {
                     set(Calendar.HOUR_OF_DAY, timePickerState.hour)
                     set(Calendar.MINUTE, timePickerState.minute)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
                 }
-                onTimeSelected(cal.timeInMillis)
+                // Use a fixed UTC "midnight" to avoid local timezone shifts
+                val utcMidnight = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                val localMidnight = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                // Calculate offset from midnight in UTC to avoid local timezone shifts
+                val offset = (timePickerState.hour * 3600000L) + (timePickerState.minute * 60000L)
+                onTimeSelected(offset)
                 onDismiss()
             }) { Text("OK") }
         },
@@ -1033,40 +1143,51 @@ fun SketchTimePickerDialog(onDismiss: () -> Unit, onTimeSelected: (Long) -> Unit
 }
 
 @Composable
-fun TimeButton(label: String, time: Long?, onClick: () -> Unit, onClear: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier) {
-    val formatter = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
-    Box(modifier = modifier.padding(top = 4.dp)) {
+fun TimeButtonSmall(
+    label: String,
+    time: Long?,
+    onClick: () -> Unit,
+    onClear: () -> Unit,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier
+) {
+    val formatter = remember { 
+        SimpleDateFormat("h:mm a", Locale.getDefault()).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+    }
+    Box(modifier = modifier) {
         OutlinedButton(
             onClick = onClick,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            contentPadding = PaddingValues(horizontal = 8.dp),
+            modifier = Modifier.fillMaxWidth().height(44.dp),
+            contentPadding = PaddingValues(start = 4.dp, end = 24.dp),
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, if (enabled) MaterialTheme.colorScheme.onBackground else Color.LightGray.copy(alpha = 0.5f)),
+            border = BorderStroke(1.dp, if (enabled) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else Color.LightGray.copy(alpha = 0.3f)),
             enabled = enabled
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(label, fontSize = 10.sp, color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else Color.Gray)
-                Text(time?.let { formatter.format(Date(it)) } ?: "--:--", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (enabled) Color.Unspecified else Color.Gray)
+            Icon(Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.size(14.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Column {
+                Text(label, fontSize = 7.sp, color = if (enabled) Color.Gray else Color.LightGray)
+                Text(
+                    time?.let { 
+                        // Note: Task storage might use full timestamps or offsets, 
+                        // ensure consistency with what's passed in.
+                        formatter.format(Date(it)) 
+                    } ?: "--:--", 
+                    fontSize = 11.sp, 
+                    color = if (enabled) Color.Unspecified else Color.LightGray
+                )
             }
         }
         if (time != null) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 8.dp, y = (-8).dp)
-                    .size(16.dp)
-                    .background(MaterialTheme.colorScheme.surface, CircleShape)
-                    .border(1.dp, MaterialTheme.colorScheme.onBackground, CircleShape)
-                    .clickable { onClear() },
-                contentAlignment = Alignment.Center
+            IconButton(
+                onClick = onClear,
+                modifier = Modifier.align(Alignment.CenterEnd).size(24.dp).padding(end = 2.dp)
             ) {
-                Icon(
-                    Icons.Default.Close,
-                    contentDescription = "Clear",
-                    modifier = Modifier.size(10.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
+                Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(12.dp), tint = Color.Gray)
             }
         }
     }
 }
+

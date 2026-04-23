@@ -12,7 +12,7 @@ enum class TaskStatus {
 }
 
 enum class RecurrenceType {
-    NONE, DAILY, WEEKLY, MONTHLY
+    NONE, DAILY, WEEKLY, MONTHLY, YEARLY
 }
 
 @Entity(tableName = "tasks")
