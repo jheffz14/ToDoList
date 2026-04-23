@@ -935,7 +935,7 @@ fun TaskDialog(
                         }
                         
                         Box(modifier = Modifier.weight(1f)) {
-                            val isEndEnabled = targetDate != null && recurrenceType == RecurrenceType.NONE
+                            val isEndEnabled = targetDate != null
                             OutlinedButton(
                                 onClick = { if (isEndEnabled) showToDatePicker = true },
                                 modifier = Modifier.fillMaxWidth().height(44.dp),

@@ -21,6 +21,7 @@ import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -279,11 +280,21 @@ class TaskViewModel(
             else -> return
         }
 
+        val nextDate = calendar.timeInMillis
+
+        // Check if the next instance exceeds the end date
+        if (task.targetEndDate != null && nextDate > task.targetEndDate) {
+            viewModelScope.launch(Dispatchers.Main) {
+                Toast.makeText(context, "Final instance of '${task.title}' completed.", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+
         val nextTask = task.copy(
             id = 0,
             status = TaskStatus.PENDING,
             isCompleted = false,
-            targetDate = calendar.timeInMillis,
+            targetDate = nextDate,
             createdAt = System.currentTimeMillis(),
             parentTaskId = task.parentTaskId ?: task.id
         )
