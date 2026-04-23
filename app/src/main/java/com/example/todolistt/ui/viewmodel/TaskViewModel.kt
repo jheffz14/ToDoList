@@ -5,11 +5,15 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.todolistt.data.local.Category
 import com.example.todolistt.data.local.Priority
+import com.example.todolistt.data.local.RecurrenceType
 import com.example.todolistt.data.local.Task
 import com.example.todolistt.data.local.TaskStatus
 import com.example.todolistt.data.repository.CategoryRepository
 import com.example.todolistt.data.repository.TaskRepository
 import com.example.todolistt.data.repository.ThemeRepository
+import com.example.todolistt.util.ReminderManager
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,19 +25,25 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class TaskViewModel(
+    application: Application,
     private val repository: TaskRepository,
     private val categoryRepository: CategoryRepository,
     private val themeRepository: ThemeRepository
-) : ViewModel() {
+) : AndroidViewModel(application) {
+
+    private val context get() = getApplication<Application>()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
     
-    private val _selectedCategory = MutableStateFlow<String?>(null)
-    val selectedCategory: StateFlow<String?> = _selectedCategory
+    private val _selectedCategories = MutableStateFlow<Set<String>>(emptySet())
+    val selectedCategories: StateFlow<Set<String>> = _selectedCategories
 
     private val _selectedMonth = MutableStateFlow(Calendar.getInstance().get(Calendar.MONTH))
+    val selectedMonth: StateFlow<Int> = _selectedMonth
+
     private val _selectedYear = MutableStateFlow(Calendar.getInstance().get(Calendar.YEAR))
+    val selectedYear: StateFlow<Int> = _selectedYear
 
     private val _selectedStatus = MutableStateFlow<TaskStatus?>(null)
 
@@ -43,15 +53,44 @@ class TaskViewModel(
     val tasks: StateFlow<List<Task>> = combine(
         repository.allTasks,
         _searchQuery,
-        _selectedCategory,
-        _selectedStatus
-    ) { tasks, query, category, status ->
+        _selectedCategories,
+        _selectedStatus,
+        _selectedMonth,
+        _selectedYear
+    ) { params: Array<Any?> ->
+        @Suppress("UNCHECKED_CAST")
+        val tasks = params[0] as List<Task>
+        val query = params[1] as String
+        @Suppress("UNCHECKED_CAST")
+        val categories = params[2] as Set<String>
+        val status = params[3] as TaskStatus?
+        val month = params[4] as Int
+        val year = params[5] as Int
+
+        val calendar = Calendar.getInstance()
         tasks.filter { task ->
-            !task.isArchived &&
-            (query.isEmpty() || task.title.contains(query, ignoreCase = true) || (task.subcategory?.contains(query, ignoreCase = true) ?: false)) &&
-            (category == null || task.category == category) &&
-            (status == null || task.status == status)
-        }.sortedWith(compareByDescending<Task> { it.priority }.thenByDescending { it.createdAt })
+            if (task.isArchived) return@filter false
+            
+            val matchesQuery = query.isEmpty() || 
+                              task.title.contains(query, ignoreCase = true) || 
+                              (task.subcategory?.contains(query, ignoreCase = true) ?: false)
+            if (!matchesQuery) return@filter false
+
+            if (categories.isNotEmpty() && !categories.contains(task.category)) return@filter false
+
+            if (status != null && task.status != status) return@filter false
+
+            calendar.timeInMillis = task.createdAt
+            val taskMonth = calendar.get(Calendar.MONTH)
+            val taskYear = calendar.get(Calendar.YEAR)
+            if (taskMonth != month || taskYear != year) return@filter false
+
+            true
+        }.sortedWith(
+            compareBy<Task> { it.status == TaskStatus.COMPLETED }
+            .thenByDescending { it.priority }
+            .thenByDescending { it.createdAt }
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -87,11 +126,9 @@ class TaskViewModel(
     fun deleteCategory(categoryName: String) {
         viewModelScope.launch {
             categoryRepository.delete(categoryName)
-            // Reset filter if the deleted category was selected
-            if (_selectedCategory.value == categoryName) {
-                _selectedCategory.value = null
+            if (_selectedCategories.value.contains(categoryName)) {
+                _selectedCategories.value -= categoryName
             }
-            // Reassign tasks
             val allTasks = repository.allTasks.first()
             allTasks.filter { it.category == categoryName }.forEach {
                 repository.update(it.copy(category = "Others"))
@@ -101,13 +138,12 @@ class TaskViewModel(
 
     val stats: StateFlow<TaskStats> = combine(
         repository.allTasks,
-        _selectedCategory,
+        _selectedCategories,
         _selectedMonth,
         _selectedYear
-    ) { tasks, category, month, year ->
-        // Exclude archived tasks from analytics and apply category filter if selected
+    ) { tasks, categories, month, year ->
         val activeTasks = tasks.filter { 
-            !it.isArchived && (category == null || it.category == category) 
+            !it.isArchived && (categories.isEmpty() || categories.contains(it.category)) 
         }
         calculateStats(activeTasks, month, year)
     }.stateIn(
@@ -147,12 +183,10 @@ class TaskViewModel(
             it.status == TaskStatus.COMPLETED && it.createdAt >= today.timeInMillis 
         }
 
-        // Category Distribution (for open tasks)
         val categoryDistribution = filteredTasks.filter { it.status != TaskStatus.COMPLETED }
             .groupBy { it.category }
             .mapValues { it.value.size }
 
-        // Daily Completion for the last 7 days
         val dateFormat = SimpleDateFormat("EEE", Locale.getDefault())
         val dailyCompletion = (0..6).reversed().map { daysAgo ->
             val date = Calendar.getInstance().apply {
@@ -186,11 +220,45 @@ class TaskViewModel(
 
     fun updateTaskStatus(task: Task, newStatus: TaskStatus) {
         viewModelScope.launch {
-            repository.update(task.copy(
+            val updatedTask = task.copy(
                 status = newStatus,
                 isCompleted = newStatus == TaskStatus.COMPLETED
-            ))
+            )
+            repository.update(updatedTask)
+            
+            if (newStatus == TaskStatus.COMPLETED) {
+                ReminderManager.cancelReminder(context, task)
+                // Handle Recurring Tasks
+                if (task.recurrenceType != RecurrenceType.NONE) {
+                    handleRecurringTask(task)
+                }
+            } else {
+                ReminderManager.scheduleReminder(context, updatedTask)
+            }
         }
+    }
+
+    private suspend fun handleRecurringTask(task: Task) {
+        val calendar = Calendar.getInstance()
+        task.targetDate?.let { calendar.timeInMillis = it }
+        
+        when (task.recurrenceType) {
+            RecurrenceType.DAILY -> calendar.add(Calendar.DAY_OF_YEAR, 1)
+            RecurrenceType.WEEKLY -> calendar.add(Calendar.WEEK_OF_YEAR, 1)
+            RecurrenceType.MONTHLY -> calendar.add(Calendar.MONTH, 1)
+            else -> return
+        }
+
+        val nextTask = task.copy(
+            id = 0,
+            status = TaskStatus.PENDING,
+            isCompleted = false,
+            targetDate = calendar.timeInMillis,
+            createdAt = System.currentTimeMillis(),
+            parentTaskId = task.parentTaskId ?: task.id
+        )
+        val newId = repository.insert(nextTask).toInt()
+        ReminderManager.scheduleReminder(context, nextTask.copy(id = newId))
     }
 
     fun addTask(
@@ -203,16 +271,16 @@ class TaskViewModel(
         targetEndDate: Long? = null,
         targetTime: Long? = null,
         startTime: Long? = null,
-        endTime: Long? = null
+        endTime: Long? = null,
+        recurrenceType: RecurrenceType = RecurrenceType.NONE
     ) {
         viewModelScope.launch {
-            // Also ensure category exists in DB if it's new
             val defaults = listOf("Personal", "Work", "Meeting", "Others")
             if (!defaults.contains(category)) {
                 categoryRepository.insert(Category(category))
             }
             
-            repository.insert(Task(
+            val task = Task(
                 title = title,
                 description = description,
                 category = category,
@@ -223,14 +291,22 @@ class TaskViewModel(
                 targetEndDate = targetEndDate,
                 targetTime = targetTime,
                 startTime = startTime,
-                endTime = endTime
-            ))
+                endTime = endTime,
+                recurrenceType = recurrenceType
+            )
+            val id = repository.insert(task).toInt()
+            ReminderManager.scheduleReminder(context, task.copy(id = id))
         }
     }
 
     fun updateTask(task: Task) {
         viewModelScope.launch {
             repository.update(task)
+            if (task.status == TaskStatus.PENDING) {
+                ReminderManager.scheduleReminder(context, task)
+            } else {
+                ReminderManager.cancelReminder(context, task)
+            }
         }
     }
 
@@ -247,6 +323,7 @@ class TaskViewModel(
     fun deleteTask(task: Task) {
         viewModelScope.launch {
             repository.delete(task)
+            ReminderManager.cancelReminder(context, task)
         }
     }
 
@@ -283,8 +360,17 @@ class TaskViewModel(
         }
     }
 
-    fun setCategoryFilter(category: String?) {
-        _selectedCategory.value = category
+    fun toggleCategoryFilter(category: String) {
+        val current = _selectedCategories.value
+        if (current.contains(category)) {
+            _selectedCategories.value = current - category
+        } else {
+            _selectedCategories.value = current + category
+        }
+    }
+
+    fun clearCategoryFilters() {
+        _selectedCategories.value = emptySet()
     }
 
     fun deleteCompletedTasks() {
@@ -309,6 +395,7 @@ class TaskViewModel(
 }
 
 class TaskViewModelFactory(
+    private val application: Application,
     private val repository: TaskRepository,
     private val categoryRepository: CategoryRepository,
     private val themeRepository: ThemeRepository
@@ -316,7 +403,7 @@ class TaskViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(TaskViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return TaskViewModel(repository, categoryRepository, themeRepository) as T
+            return TaskViewModel(application, repository, categoryRepository, themeRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

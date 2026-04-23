@@ -11,6 +11,10 @@ enum class TaskStatus {
     PENDING, COMPLETED
 }
 
+enum class RecurrenceType {
+    NONE, DAILY, WEEKLY, MONTHLY
+}
+
 @Entity(tableName = "tasks")
 data class Task(
     @PrimaryKey(autoGenerate = true)
@@ -28,6 +32,8 @@ data class Task(
     val endTime: Long? = null,   // Store as milliseconds from start of day
     val audioPath: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
-    val isCompleted: Boolean = false, // Keep for backward compatibility or use status instead
-    val isArchived: Boolean = false
+    val isCompleted: Boolean = false,
+    val isArchived: Boolean = false,
+    val recurrenceType: RecurrenceType = RecurrenceType.NONE,
+    val parentTaskId: Int? = null // To track instances of recurring tasks
 )

@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
     private val themeRepository by lazy { ThemeRepository(this) }
     
     private val viewModel: TaskViewModel by viewModels {
-        TaskViewModelFactory(repository, categoryRepository, themeRepository)
+        TaskViewModelFactory(application, repository, categoryRepository, themeRepository)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

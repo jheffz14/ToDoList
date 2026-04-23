@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -45,15 +46,15 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
     val stats by viewModel.stats.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
     val categories by viewModel.categories.collectAsState()
+    val selectedMonth by viewModel.selectedMonth.collectAsState()
+    val selectedYear by viewModel.selectedYear.collectAsState()
+    
     var timeFilter by remember { mutableStateOf("All") }
     var showTimeFilterMenu by remember { mutableStateOf(false) }
     var showManageCategoriesGlobal by remember { mutableStateOf(false) }
 
-    // Date range for filtering
-    var currentYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
-    var currentMonth by remember { mutableStateOf(Calendar.getInstance().get(Calendar.MONTH)) }
-    val monthName = remember(currentMonth) {
-        val cal = Calendar.getInstance().apply { set(Calendar.MONTH, currentMonth) }
+    val monthName = remember(selectedMonth) {
+        val cal = Calendar.getInstance().apply { set(Calendar.MONTH, selectedMonth) }
         SimpleDateFormat("MMMM", Locale.getDefault()).format(cal.time)
     }
 
@@ -122,31 +123,44 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = SketchPrimary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("$monthName $currentYear", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("$monthName $selectedYear", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                     Row {
                         IconButton(onClick = {
-                            if (currentMonth == 0) {
-                                currentMonth = 11
-                                currentYear--
+                            var m = selectedMonth
+                            var y = selectedYear
+                            if (m == 0) {
+                                m = 11
+                                y--
                             } else {
-                                currentMonth--
+                                m--
                             }
-                            viewModel.setDateFilter(currentMonth, currentYear)
+                            viewModel.setDateFilter(m, y)
                         }) {
                             Icon(Icons.Default.ChevronLeft, contentDescription = "Prev", tint = MaterialTheme.colorScheme.onSurface)
                         }
                         IconButton(onClick = {
-                            if (currentMonth == 11) {
-                                currentMonth = 0
-                                currentYear++
+                            var m = selectedMonth
+                            var y = selectedYear
+                            if (m == 11) {
+                                m = 0
+                                y++
                             } else {
-                                currentMonth++
+                                m++
                             }
-                            viewModel.setDateFilter(currentMonth, currentYear)
+                            viewModel.setDateFilter(m, y)
                         }) {
                             Icon(Icons.Default.ChevronRight, contentDescription = "Next", tint = MaterialTheme.colorScheme.onSurface)
                         }
+                    }
+                    IconButton(onClick = {
+                        val today = Calendar.getInstance()
+                        viewModel.setDateFilter(
+                            today.get(Calendar.MONTH),
+                            today.get(Calendar.YEAR)
+                        )
+                    }) {
+                        Icon(Icons.Default.Today, contentDescription = "Today", tint = SketchPrimary)
                     }
                 }
             }

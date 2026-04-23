@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.todolistt.data.local.Priority
+import com.example.todolistt.data.local.RecurrenceType
 import com.example.todolistt.data.local.Task
 import com.example.todolistt.data.local.TaskStatus
 import com.example.todolistt.ui.theme.SketchError
@@ -48,7 +49,9 @@ fun TaskScreen(
     val categories by viewModel.categories.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val selectedCategory by viewModel.selectedCategory.collectAsState()
+    val selectedCategories by viewModel.selectedCategories.collectAsState()
+    val selectedMonth by viewModel.selectedMonth.collectAsState()
+    val selectedYear by viewModel.selectedYear.collectAsState()
     
     val selectedStatusState = remember { mutableStateOf<TaskStatus?>(null) }
 
@@ -134,56 +137,151 @@ fun TaskScreen(
                 )
 
                 // Improved Filter UI
-                Row(
+                LazyRow(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Status Filter Dropdown
-                    var showStatusMenu by remember { mutableStateOf(false) }
-                    Box {
+                    item {
+                        // Go to Today Button
+                        val today = Calendar.getInstance()
+                        val isTodaySelected = selectedMonth == today.get(Calendar.MONTH) && 
+                                            selectedYear == today.get(Calendar.YEAR)
+                        
                         FilterChip(
-                            selected = selectedStatusState.value != null,
-                            onClick = { showStatusMenu = true },
-                            label = { Text(selectedStatusState.value?.name ?: "All Status") },
-                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) }
+                            selected = isTodaySelected,
+                            onClick = {
+                                viewModel.setDateFilter(
+                                    today.get(Calendar.MONTH),
+                                    today.get(Calendar.YEAR)
+                                )
+                            },
+                            label = { Text("Today") },
+                            leadingIcon = { Icon(Icons.Default.Today, contentDescription = null, modifier = Modifier.size(18.dp)) }
                         )
-                        DropdownMenu(expanded = showStatusMenu, onDismissRequest = { showStatusMenu = false }) {
-                            DropdownMenuItem(text = { Text("All Status") }, onClick = { 
-                                selectedStatusState.value = null
-                                viewModel.setStatusFilter(null)
-                                showStatusMenu = false
-                            })
-                            DropdownMenuItem(text = { Text("Pending") }, onClick = { 
-                                selectedStatusState.value = TaskStatus.PENDING
-                                viewModel.setStatusFilter(TaskStatus.PENDING)
-                                showStatusMenu = false
-                            })
-                            DropdownMenuItem(text = { Text("Completed") }, onClick = { 
-                                selectedStatusState.value = TaskStatus.COMPLETED
-                                viewModel.setStatusFilter(TaskStatus.COMPLETED)
-                                showStatusMenu = false
-                            })
+                    }
+
+                    item {
+                        // Month Selector Dropdown
+                        var showMonthMenu by remember { mutableStateOf(false) }
+                        val calendar = Calendar.getInstance()
+                        Box {
+                            FilterChip(
+                                selected = true,
+                                onClick = { showMonthMenu = true },
+                                label = { 
+                                    val monthName = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(
+                                        Calendar.getInstance().apply {
+                                            set(Calendar.MONTH, selectedMonth)
+                                            set(Calendar.YEAR, selectedYear)
+                                        }.time
+                                    )
+                                    Text(monthName) 
+                                },
+                                trailingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            )
+                            DropdownMenu(expanded = showMonthMenu, onDismissRequest = { showMonthMenu = false }) {
+                                // Show range: 12 months back to 24 months forward
+                                for (i in -12..24) {
+                                    val cal = Calendar.getInstance().apply { add(Calendar.MONTH, i) }
+                                    val m = cal.get(Calendar.MONTH)
+                                    val y = cal.get(Calendar.YEAR)
+                                    val label = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        onClick = {
+                                            viewModel.setDateFilter(m, y)
+                                            showMonthMenu = false
+                                        },
+                                        leadingIcon = {
+                                            if (selectedMonth == m && selectedYear == y) {
+                                                Icon(Icons.Default.Check, contentDescription = null)
+                                            }
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    // Category Filter Scroll
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        item {
+                    item {
+                        // Status Filter Dropdown
+                        var showStatusMenu by remember { mutableStateOf(false) }
+                        Box {
                             FilterChip(
-                                selected = selectedCategory == null,
-                                onClick = { viewModel.setCategoryFilter(null) },
-                                label = { Text("All") }
+                                selected = selectedStatusState.value != null,
+                                onClick = { showStatusMenu = true },
+                                label = { Text(selectedStatusState.value?.name ?: "All Status") },
+                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) }
                             )
+                            DropdownMenu(expanded = showStatusMenu, onDismissRequest = { showStatusMenu = false }) {
+                                DropdownMenuItem(text = { Text("All Status") }, onClick = { 
+                                    selectedStatusState.value = null
+                                    viewModel.setStatusFilter(null)
+                                    showStatusMenu = false
+                                })
+                                DropdownMenuItem(text = { Text("Pending") }, onClick = { 
+                                    selectedStatusState.value = TaskStatus.PENDING
+                                    viewModel.setStatusFilter(TaskStatus.PENDING)
+                                    showStatusMenu = false
+                                })
+                                DropdownMenuItem(text = { Text("Completed") }, onClick = { 
+                                    selectedStatusState.value = TaskStatus.COMPLETED
+                                    viewModel.setStatusFilter(TaskStatus.COMPLETED)
+                                    showStatusMenu = false
+                                })
+                            }
                         }
-                        items(categories) { category ->
+                    }
+
+                    item {
+                        // Category Filter Dropdown (Multi-select)
+                        var showCategoryMenu by remember { mutableStateOf(false) }
+                        Box {
                             FilterChip(
-                                selected = selectedCategory == category,
-                                onClick = { viewModel.setCategoryFilter(category) },
-                                label = { Text(category) }
+                                selected = selectedCategories.isNotEmpty(),
+                                onClick = { showCategoryMenu = true },
+                                label = { 
+                                    val label = when {
+                                        selectedCategories.isEmpty() -> "All Categories"
+                                        selectedCategories.size == 1 -> selectedCategories.first()
+                                        else -> "${selectedCategories.size} Categories"
+                                    }
+                                    Text(label) 
+                                },
+                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) }
                             )
+                            DropdownMenu(
+                                expanded = showCategoryMenu, 
+                                onDismissRequest = { showCategoryMenu = false },
+                                modifier = Modifier.widthIn(min = 200.dp)
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("All (Clear Filters)") }, 
+                                    onClick = { 
+                                        viewModel.clearCategoryFilters()
+                                        showCategoryMenu = false
+                                    },
+                                    leadingIcon = { if (selectedCategories.isEmpty()) Icon(Icons.Default.Check, contentDescription = null) }
+                                )
+                                HorizontalDivider()
+                                categories.forEach { category ->
+                                    val isSelected = selectedCategories.contains(category)
+                                    DropdownMenuItem(
+                                        text = { Text(category) },
+                                        onClick = { 
+                                            viewModel.toggleCategoryFilter(category)
+                                        },
+                                        leadingIcon = {
+                                            Checkbox(
+                                                checked = isSelected,
+                                                onCheckedChange = { viewModel.toggleCategoryFilter(category) },
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -455,6 +553,16 @@ fun SketchTaskItem(
                         Spacer(modifier = Modifier.width(8.dp))
                         PriorityBadge(task.priority)
 
+                        if (task.recurrenceType != RecurrenceType.NONE) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = "Recurring",
+                                tint = SketchPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+
                         if (isNear && task.status != TaskStatus.COMPLETED) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(
@@ -562,6 +670,7 @@ fun TaskDialog(
     
     var targetDate by remember { mutableStateOf(task?.targetDate) }
     var targetEndDate by remember { mutableStateOf(task?.targetEndDate) }
+    var recurrenceType by remember { mutableStateOf(task?.recurrenceType ?: RecurrenceType.NONE) }
 
     var startTime by remember { mutableStateOf(task?.startTime) }
     var endTime by remember { mutableStateOf(task?.endTime) }
@@ -700,7 +809,7 @@ fun TaskDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         TimeButton(
-                            label = "From", 
+                            label = "Start",
                             time = startTime, 
                             onClick = { showTimePickerForStart = true },
                             onClear = { 
@@ -710,7 +819,7 @@ fun TaskDialog(
                             modifier = Modifier.weight(1f)
                         )
                         TimeButton(
-                            label = "To", 
+                            label = "End",
                             time = endTime, 
                             onClick = { if (startTime != null) showTimePickerForEnd = true },
                             onClear = { endTime = null },
@@ -728,6 +837,19 @@ fun TaskDialog(
                                 selected = priority == p,
                                 onClick = { priority = p },
                                 label = { Text(p.name) }
+                            )
+                        }
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Recurrence", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        RecurrenceType.entries.forEach { type ->
+                            FilterChip(
+                                selected = recurrenceType == type,
+                                onClick = { recurrenceType = type },
+                                label = { Text(type.name.lowercase().replaceFirstChar { it.uppercase() }) }
                             )
                         }
                     }
@@ -757,7 +879,8 @@ fun TaskDialog(
                             targetDate = targetDate,
                             targetEndDate = targetEndDate,
                             startTime = startTime,
-                            endTime = endTime
+                            endTime = endTime,
+                            recurrenceType = recurrenceType
                         )
                         onConfirm(updated)
                     }
