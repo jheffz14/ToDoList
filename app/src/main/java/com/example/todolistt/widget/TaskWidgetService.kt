@@ -29,11 +29,13 @@ class TaskWidgetFactory(private val context: Context) : RemoteViewsService.Remot
         val database = TaskDatabase.getDatabase(context)
         
         runBlocking {
-            // Show all pending, non-archived tasks in the widget to ensure data is visible
-            // We can add more specific filtering later if needed
+            // Sort by: 1. Priority (High to Low), 2. Creation Time (Newest first)
             tasks = database.taskDao().getAllTasks().first()
                 .filter { !it.isCompleted && !it.isArchived }
-                .sortedWith(compareBy({ it.priority }, { it.targetDate ?: Long.MAX_VALUE }))
+                .sortedWith(
+                    compareBy<Task> { it.priority } // Priority is an Enum (HIGH, MEDIUM, LOW)
+                        .thenByDescending { it.createdAt }
+                )
         }
     }
 
