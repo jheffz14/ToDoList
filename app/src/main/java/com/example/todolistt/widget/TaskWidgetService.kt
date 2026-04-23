@@ -30,10 +30,9 @@ class TaskWidgetFactory(private val context: Context) : RemoteViewsService.Remot
         
         runBlocking {
             // Sort by: 1. Priority (High to Low), 2. Creation Time (Newest first)
-            tasks = database.taskDao().getAllTasks().first()
-                .filter { !it.isCompleted && !it.isArchived }
+            tasks = database.taskDao().getActiveTasksSync()
                 .sortedWith(
-                    compareBy<Task> { it.priority } // Priority is an Enum (HIGH, MEDIUM, LOW)
+                    compareByDescending<Task> { it.priority } // HIGH > MEDIUM > LOW
                         .thenByDescending { it.createdAt }
                 )
         }
