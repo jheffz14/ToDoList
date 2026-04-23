@@ -28,6 +28,16 @@ import com.example.todolistt.ui.screens.TaskScreen
 import com.example.todolistt.ui.theme.ToDoListtTheme
 import com.example.todolistt.ui.viewmodel.TaskViewModel
 import com.example.todolistt.ui.viewmodel.TaskViewModelFactory
+import android.Manifest
+import android.app.AlarmManager
+import android.content.Context
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import android.widget.Toast
 
 class MainActivity : ComponentActivity() {
     private val database by lazy { TaskDatabase.getDatabase(this) }
@@ -41,9 +51,18 @@ class MainActivity : ComponentActivity() {
 
     private var initialTaskIdFromWidget = mutableStateOf<Int?>(null)
 
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (!isGranted) {
+            // Explain to the user that notifications are needed
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        checkPermissions()
         handleIntent(intent)
 
         setContent {
@@ -110,6 +129,45 @@ class MainActivity : ComponentActivity() {
         val taskId = intent?.getIntExtra("TASK_ID", -1) ?: -1
         if (taskId != -1) {
             initialTaskIdFromWidget.value = taskId
+        }
+    }
+
+    private fun checkPermissions() {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+
+        // 1. Request Notification Permission (Android 13+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        // 2. Check Channel Importance (Force Heads-up)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = notificationManager.getNotificationChannel("task_reminders_v2")
+            if (channel != null && channel.importance < android.app.NotificationManager.IMPORTANCE_HIGH) {
+                // The user downgraded the channel importance. Force them to fix it.
+                val intent = Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                    putExtra(Settings.EXTRA_CHANNEL_ID, "task_reminders_v2")
+                }
+                startActivity(intent)
+                Toast.makeText(this, "Please enable 'High Importance' for Pop-up notifications", Toast.LENGTH_LONG).show()
+            }
+        }
+
+        // 3. Check Exact Alarm Permission (Android 12+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            if (!alarmManager.canScheduleExactAlarms()) {
+                val intent = Intent().apply {
+                    action = Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            }
         }
     }
 }

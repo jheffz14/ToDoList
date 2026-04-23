@@ -182,7 +182,7 @@ class TaskViewModel(
         val calendar = Calendar.getInstance()
         
         val tasksInMonth = filteredTasks.filter { task ->
-            calendar.timeInMillis = task.createdAt
+            calendar.timeInMillis = task.targetDate ?: task.createdAt
             val taskMonth = calendar.get(Calendar.MONTH)
             val taskYear = calendar.get(Calendar.YEAR)
             taskMonth == filterMonth && taskYear == filterYear

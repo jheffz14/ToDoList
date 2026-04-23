@@ -7,21 +7,27 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.media.AudioAttributes
-import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.example.todolistt.MainActivity
-import com.example.todolistt.R
+import com.example.todolistt.data.local.TaskDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class TaskReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val taskId = intent.getIntExtra("TASK_ID", 0)
+        val taskId = intent.getIntExtra("TASK_ID", -1)
         val taskTitle = intent.getStringExtra("TASK_TITLE") ?: "Task Reminder"
         val snoozeCount = intent.getIntExtra("SNOOZE_COUNT", 0)
         val action = intent.action
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (action == Intent.ACTION_BOOT_COMPLETED) {
+            // Reschedule alarms if needed, but don't show a notification
+            return
+        }
 
         if (action == "com.example.todolistt.DISMISS") {
             notificationManager.cancel(taskId)
@@ -30,26 +36,44 @@ class TaskReminderReceiver : BroadcastReceiver() {
 
         if (action == "com.example.todolistt.SNOOZE") {
             notificationManager.cancel(taskId)
-            if (snoozeCount < 3) {
+            if (snoozeCount < 5) {
                 scheduleSnooze(context, taskId, taskTitle, snoozeCount + 1)
             }
             return
         }
-        
-        val channelId = "task_reminders_high"
+
+        if (taskId == -1) return
+
+        // Verify task still exists and isn't completed before showing notification
+        val database = TaskDatabase.getDatabase(context)
+        val goAsync = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val task = database.taskDao().getTaskById(taskId)
+                if (task != null && !task.isCompleted) {
+                    showNotification(context, taskId, task.title, snoozeCount)
+                }
+            } finally {
+                goAsync.finish()
+            }
+        }
+    }
+
+    private fun showNotification(context: Context, taskId: Int, taskTitle: String, snoozeCount: Int) {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channelId = "task_reminders_v2"
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId, 
-                "Task Reminders (High Importance)", 
+                "Task Reminders (Priority)", 
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Notifications for upcoming tasks with sound and popup"
+                description = "High importance notifications that pop up"
                 enableLights(true)
                 enableVibration(true)
-                // To use custom sound:
-                // val soundUri = Uri.parse("android.resource://${context.packageName}/raw/alarm_sound")
-                // setSound(soundUri, AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).build())
+                setShowBadge(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
             notificationManager.createNotificationChannel(channel)
         }
@@ -68,7 +92,7 @@ class TaskReminderReceiver : BroadcastReceiver() {
 
         // Snooze Action
         val snoozeIntent = Intent(context, TaskReminderReceiver::class.java).apply {
-            action = "com.example.todolistt.SNOOZE"
+            setAction("com.example.todolistt.SNOOZE")
             putExtra("TASK_ID", taskId)
             putExtra("TASK_TITLE", taskTitle)
             putExtra("SNOOZE_COUNT", snoozeCount)
@@ -79,7 +103,7 @@ class TaskReminderReceiver : BroadcastReceiver() {
 
         // Dismiss Action
         val dismissIntent = Intent(context, TaskReminderReceiver::class.java).apply {
-            action = "com.example.todolistt.DISMISS"
+            setAction("com.example.todolistt.DISMISS")
             putExtra("TASK_ID", taskId)
         }
         val dismissPendingIntent = PendingIntent.getBroadcast(
@@ -87,16 +111,19 @@ class TaskReminderReceiver : BroadcastReceiver() {
         )
 
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm) // Change to your app logo later
-            .setContentTitle("ToDoList - Task Reminder")
-            .setContentText(taskTitle)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle("Task Reminder: $taskTitle")
+            .setContentText("Snooze for 10m or Dismiss to close.")
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
-            .setFullScreenIntent(pendingIntent, true) // Makes it pop up
+            .setFullScreenIntent(pendingIntent, true)
             .setContentIntent(pendingIntent)
-            .addAction(0, "Snooze", snoozePendingIntent)
-            .addAction(0, "Close", dismissPendingIntent)
+            .addAction(0, "Snooze (10m)", snoozePendingIntent)
+            .addAction(0, "Dismiss", dismissPendingIntent)
+            .setDeleteIntent(dismissPendingIntent) // Also dismiss when swiped away
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
 
         notificationManager.notify(taskId, notification)
@@ -112,7 +139,7 @@ class TaskReminderReceiver : BroadcastReceiver() {
         val pendingIntent = PendingIntent.getBroadcast(
             context, taskId, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val triggerTime = System.currentTimeMillis() + (5 * 60 * 1000) // 5 minutes
+        val triggerTime = System.currentTimeMillis() + (10 * 60 * 1000) // 10 minutes snooze
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (!alarmManager.canScheduleExactAlarms()) {
                 alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
