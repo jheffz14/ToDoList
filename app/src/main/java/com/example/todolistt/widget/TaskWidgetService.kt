@@ -9,7 +9,10 @@ import com.example.todolistt.data.local.Task
 import com.example.todolistt.data.local.TaskDatabase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Locale
+import java.util.TimeZone
 
 class TaskWidgetService : RemoteViewsService() {
     override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
@@ -43,6 +46,23 @@ class TaskWidgetFactory(private val context: Context) : RemoteViewsService.Remot
         val views = RemoteViews(context.packageName, R.layout.widget_item)
         
         views.setTextViewText(R.id.widget_item_title, task.title)
+        
+        // Format Date and Time for the widget
+        val dateText = task.targetDate?.let { date ->
+            val sdf = SimpleDateFormat("MM/dd/yy", Locale.getDefault())
+            val dateStr = sdf.format(java.util.Date(date))
+            
+            val timeStr = task.startTime?.let { startTime ->
+                val timeSdf = SimpleDateFormat("h:mm a", Locale.getDefault()).apply {
+                    timeZone = TimeZone.getTimeZone("UTC")
+                }
+                timeSdf.format(java.util.Date(startTime))
+            } ?: ""
+            
+            if (timeStr.isNotEmpty()) "$dateStr  $timeStr" else dateStr
+        } ?: ""
+        
+        views.setTextViewText(R.id.widget_item_date, dateText)
         
         // Color coding based on priority
         val priorityColor = when (task.priority) {

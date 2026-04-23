@@ -1155,8 +1155,6 @@ fun SketchTimePickerDialog(onDismiss: () -> Unit, onTimeSelected: (Long) -> Unit
         initialMinute = currentTime.get(Calendar.MINUTE),
         is24Hour = false
     )
-    
-    var showTimeInput by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1170,35 +1168,14 @@ fun SketchTimePickerDialog(onDismiss: () -> Unit, onTimeSelected: (Long) -> Unit
             }) { Text("OK") }
         },
         dismissButton = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { showTimeInput = !showTimeInput }) {
-                    Icon(
-                        if (showTimeInput) Icons.Default.AccessTime else Icons.Default.Keyboard,
-                        contentDescription = "Toggle Input Mode"
-                    )
-                }
-                TextButton(onClick = onDismiss) { Text("Cancel") }
-            }
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (showTimeInput) {
-                    Text(
-                        "Enter Time",
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-                    TimeInput(state = timePickerState)
-                } else {
-                    TimePicker(state = timePickerState)
-                }
+                TimePicker(state = timePickerState)
             }
         }
     )
