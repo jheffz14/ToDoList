@@ -272,35 +272,43 @@ class TaskViewModel(
         val calendar = Calendar.getInstance()
         task.targetDate?.let { calendar.timeInMillis = it }
         
+        if (task.recurrenceType != RecurrenceType.NONE) {
+            val nextDate = calculateNextDate(task)
+            
+            // Check if the next instance exceeds the end date
+            if (task.targetEndDate != null && nextDate > task.targetEndDate) {
+                viewModelScope.launch(Dispatchers.Main) {
+                    Toast.makeText(context, "Great job! You've completed the full series for '${task.title}'.", Toast.LENGTH_LONG).show()
+                }
+                return
+            }
+
+            val nextTask = task.copy(
+                id = 0,
+                status = TaskStatus.PENDING,
+                isCompleted = false,
+                targetDate = nextDate,
+                createdAt = System.currentTimeMillis(),
+                parentTaskId = task.parentTaskId ?: task.id
+            )
+            val newId = repository.insert(nextTask).toInt()
+            ReminderManager.scheduleReminder(context, nextTask.copy(id = newId))
+        }
+        updateWidget()
+    }
+
+    private fun calculateNextDate(task: Task): Long {
+        val calendar = Calendar.getInstance()
+        task.targetDate?.let { calendar.timeInMillis = it }
+        
         when (task.recurrenceType) {
             RecurrenceType.DAILY -> calendar.add(Calendar.DAY_OF_YEAR, 1)
             RecurrenceType.WEEKLY -> calendar.add(Calendar.WEEK_OF_YEAR, 1)
             RecurrenceType.MONTHLY -> calendar.add(Calendar.MONTH, 1)
             RecurrenceType.YEARLY -> calendar.add(Calendar.YEAR, 1)
-            else -> return
+            else -> {}
         }
-
-        val nextDate = calendar.timeInMillis
-
-        // Check if the next instance exceeds the end date
-        if (task.targetEndDate != null && nextDate > task.targetEndDate) {
-            viewModelScope.launch(Dispatchers.Main) {
-                Toast.makeText(context, "Final instance of '${task.title}' completed.", Toast.LENGTH_LONG).show()
-            }
-            return
-        }
-
-        val nextTask = task.copy(
-            id = 0,
-            status = TaskStatus.PENDING,
-            isCompleted = false,
-            targetDate = nextDate,
-            createdAt = System.currentTimeMillis(),
-            parentTaskId = task.parentTaskId ?: task.id
-        )
-        val newId = repository.insert(nextTask).toInt()
-        ReminderManager.scheduleReminder(context, nextTask.copy(id = newId))
-        updateWidget()
+        return calendar.timeInMillis
     }
 
     fun addTask(

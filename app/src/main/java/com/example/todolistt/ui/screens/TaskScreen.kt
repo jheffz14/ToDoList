@@ -205,6 +205,7 @@ fun TaskScreen(
                     item {
                         // Status Filter Dropdown
                         var showStatusMenu by remember { mutableStateOf(false) }
+
                         Box {
                             FilterChip(
                                 selected = selectedStatus != null,
@@ -246,9 +247,10 @@ fun TaskScreen(
                                     viewModel.setRecurrenceFilter(null)
                                     showRecurrenceMenu = false
                                 })
-                                RecurrenceType.entries.forEach { type ->
+                                // Only show Today (NONE) and Daily in the filter
+                                listOf(RecurrenceType.NONE, RecurrenceType.DAILY).forEach { type ->
                                     DropdownMenuItem(
-                                        text = { Text(type.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                                        text = { Text(if (type == RecurrenceType.NONE) "Today" else type.name.lowercase().replaceFirstChar { it.uppercase() }) },
                                         onClick = {
                                             viewModel.setRecurrenceFilter(type)
                                             showRecurrenceMenu = false
@@ -495,7 +497,23 @@ fun SketchTaskItem(
             timeZone = TimeZone.getTimeZone("UTC")
         }
     }
-    var showStatusMenu by remember { mutableStateOf(false) }
+    // Removed unused state: var showStatusMenu by remember { mutableStateOf(false) }
+
+    val isFutureDailyTask = remember(task.recurrenceType, task.targetDate) {
+        if (task.recurrenceType == RecurrenceType.DAILY && task.targetDate != null) {
+            val today = Calendar.getInstance().apply { 
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            // It is only "future" if the target date is strictly after today.
+            // If it's today, it is NOT a future task and can be marked completed.
+            task.targetDate > today
+        } else {
+            false
+        }
+    }
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = {
@@ -541,6 +559,23 @@ fun SketchTaskItem(
             } ?: false
         }
 
+        val isFinalInstance = remember(task.recurrenceType, task.targetDate, task.targetEndDate) {
+            if (task.recurrenceType == RecurrenceType.NONE || task.targetDate == null || task.targetEndDate == null) {
+                false
+            } else {
+                val calendar = Calendar.getInstance()
+                calendar.timeInMillis = task.targetDate
+                when (task.recurrenceType) {
+                    RecurrenceType.DAILY -> calendar.add(Calendar.DAY_OF_YEAR, 1)
+                    RecurrenceType.WEEKLY -> calendar.add(Calendar.WEEK_OF_YEAR, 1)
+                    RecurrenceType.MONTHLY -> calendar.add(Calendar.MONTH, 1)
+                    RecurrenceType.YEARLY -> calendar.add(Calendar.YEAR, 1)
+                    else -> {}
+                }
+                calendar.timeInMillis > task.targetEndDate
+            }
+        }
+
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -572,29 +607,19 @@ fun SketchTaskItem(
                     Icon(Icons.Default.CheckCircle, contentDescription = "Selected", tint = SketchPrimary, modifier = Modifier.padding(end = 12.dp))
                 }
 
-                Box {
-                    IconButton(onClick = { showStatusMenu = true }) {
-                        val icon = when (task.status) {
-                            TaskStatus.COMPLETED -> Icons.Default.CheckCircle
-                            else -> Icons.Default.RadioButtonUnchecked
-                        }
-                        Icon(
-                            icon,
-                            contentDescription = "Toggle status",
-                            tint = if (task.status == TaskStatus.COMPLETED) SketchPrimary else if (isNear) SketchError else MaterialTheme.colorScheme.onBackground
-                        )
+                IconButton(
+                    onClick = { onToggleStatus(if (task.status == TaskStatus.COMPLETED) TaskStatus.PENDING else TaskStatus.COMPLETED) },
+                    enabled = !isFutureDailyTask
+                ) {
+                    val icon = when (task.status) {
+                        TaskStatus.COMPLETED -> Icons.Default.CheckCircle
+                        else -> Icons.Default.RadioButtonUnchecked
                     }
-                    DropdownMenu(expanded = showStatusMenu, onDismissRequest = { showStatusMenu = false }) {
-                        listOf(TaskStatus.PENDING, TaskStatus.COMPLETED).forEach { status ->
-                            DropdownMenuItem(
-                                text = { Text(status.name) },
-                                onClick = {
-                                    onToggleStatus(status)
-                                    showStatusMenu = false
-                                }
-                            )
-                        }
-                    }
+                    Icon(
+                        icon,
+                        contentDescription = if (isFutureDailyTask) "Task not yet active" else "Toggle status",
+                        tint = if (isFutureDailyTask) Color.LightGray else if (task.status == TaskStatus.COMPLETED) SketchPrimary else if (isNear) SketchError else MaterialTheme.colorScheme.onBackground
+                    )
                 }
                 
                 Column(modifier = Modifier.weight(1f)) {
@@ -614,19 +639,24 @@ fun SketchTaskItem(
                             Spacer(modifier = Modifier.width(6.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.background(SketchPrimary.copy(alpha = 0.1f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp)
+                                modifier = Modifier
+                                    .background(
+                                        if (isFinalInstance) Color(0xFFFFD700).copy(alpha = 0.2f) else SketchPrimary.copy(alpha = 0.1f), 
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.Sync,
+                                    if (isFinalInstance) Icons.Default.Flag else Icons.Default.Sync,
                                     contentDescription = null,
-                                    tint = SketchPrimary,
+                                    tint = if (isFinalInstance) Color(0xFFFFD700) else SketchPrimary,
                                     modifier = Modifier.size(12.dp)
                                 )
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Text(
-                                    task.recurrenceType.name.lowercase().replaceFirstChar { it.uppercase() },
+                                    if (isFinalInstance) "Final" else task.recurrenceType.name.lowercase().replaceFirstChar { it.uppercase() },
                                     fontSize = 10.sp,
-                                    color = SketchPrimary,
+                                    color = if (isFinalInstance) Color(0xFFB8860B) else SketchPrimary,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -647,35 +677,44 @@ fun SketchTaskItem(
                         Text(
                             text = task.subcategory,
                             style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-                            maxLines = 1
+                            maxLines = 1,
+                            modifier = Modifier.padding(bottom = 2.dp)
                         )
                     }
                     
-                    Row(
-                        modifier = Modifier.padding(top = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Column( // Changed from Row to Column to stack date/time and category if needed for space
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Gray)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            dateFormatter.format(Date(task.targetDate ?: 0L)),
-                            fontSize = 12.sp, 
-                            color = Color.Gray
-                        )
-                        
-                        if (task.startTime != null) {
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Icon(Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.size(14.dp), tint = if (isNear && task.status != TaskStatus.COMPLETED) SketchError else Color.Gray)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.Gray)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                timeFormatter.format(Date(task.startTime)),
-                                fontSize = 12.sp, 
-                                color = if (isNear && task.status != TaskStatus.COMPLETED) SketchError else Color.Gray,
-                                fontWeight = if (isNear && task.status != TaskStatus.COMPLETED) FontWeight.Bold else FontWeight.Normal
+                                text = if (task.recurrenceType != RecurrenceType.NONE && task.targetEndDate != null) {
+                                    "${dateFormatter.format(Date(task.targetDate ?: 0L))} - ${dateFormatter.format(Date(task.targetEndDate))}"
+                                } else {
+                                    dateFormatter.format(Date(task.targetDate ?: 0L))
+                                },
+                                fontSize = 11.sp, 
+                                color = Color.Gray
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                        if (task.startTime != null) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.Gray)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (task.endTime != null) {
+                                        "${timeFormatter.format(Date(task.startTime))} - ${timeFormatter.format(Date(task.endTime))}"
+                                    } else {
+                                        timeFormatter.format(Date(task.startTime))
+                                    },
+                                    fontSize = 11.sp, 
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+
                         Box(
                             modifier = Modifier
                                 .background(SketchPrimary.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
@@ -782,16 +821,18 @@ fun TaskDialog(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Task Title", fontSize = 12.sp) },
+                    label = { Text("Task Title *", fontSize = 12.sp) },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(12.dp),
-                    textStyle = MaterialTheme.typography.bodyMedium
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    isError = title.isBlank(),
+                    supportingText = if (title.isBlank()) { { Text("Task Title is required", fontSize = 10.sp) } } else null
                 )
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     var showRecurrenceInfo by remember { mutableStateOf(false) }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Recurrence", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("Recurrence *", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         Spacer(modifier = Modifier.width(4.dp))
                         IconButton(onClick = { showRecurrenceInfo = true }, modifier = Modifier.size(16.dp)) {
                             Icon(Icons.Default.Info, contentDescription = "Recurrence Info", tint = SketchPrimary, modifier = Modifier.size(14.dp))
@@ -814,24 +855,34 @@ fun TaskDialog(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     ) {
-                        // Ensure "None" is very obvious and easy to click
-                        RecurrenceType.entries.forEach { type ->
+                        // Only show NONE and DAILY recurrence types
+                        listOf(RecurrenceType.NONE, RecurrenceType.DAILY).forEach { type ->
                             val isSelected = recurrenceType == type
                             FilterChip(
                                 selected = isSelected,
-                                onClick = { 
-                                    recurrenceType = type 
-                                    if (recurrenceType != RecurrenceType.NONE) {
+                                onClick = {
+                                    recurrenceType = type
+                                    if (type == RecurrenceType.NONE) {
+                                        // When "Today (One-time)" is selected, ensure no end date is set
                                         targetEndDate = null
+                                        // Also ensure targetDate is set to today's date if it's null (though it's usually initialized to today)
+                                        if (targetDate == null) {
+                                            targetDate = Calendar.getInstance().apply {
+                                                set(Calendar.HOUR_OF_DAY, 0)
+                                                set(Calendar.MINUTE, 0)
+                                                set(Calendar.SECOND, 0)
+                                                set(Calendar.MILLISECOND, 0)
+                                            }.timeInMillis
+                                        }
                                     }
                                 },
-                                label = { 
+                                label = {
                                     Text(
-                                        text = if (type == RecurrenceType.NONE) "NONE (One-time)" 
-                                               else type.name.lowercase().replaceFirstChar { it.uppercase() }, 
+                                        text = if (type == RecurrenceType.NONE) "Today"
+                                               else type.name.lowercase().replaceFirstChar { it.uppercase() },
                                         fontSize = 10.sp,
                                         fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold
-                                    ) 
+                                    )
                                 },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = FilterChipDefaults.filterChipColors(
@@ -848,7 +899,7 @@ fun TaskDialog(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     val isCategoryValid = if (isAddingCustomCategory) customCategory.isNotBlank() else availableCategories.contains(category)
                     Text(
-                        "Category (Required)", 
+                        "Category *", 
                         style = MaterialTheme.typography.titleSmall, 
                         fontWeight = FontWeight.Bold, 
                         fontSize = 12.sp,
@@ -920,7 +971,7 @@ fun TaskDialog(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 val dateText = targetDate?.let { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(it)) } ?: "Select Date"
                                 Column {
-                                    Text(if (recurrenceType == RecurrenceType.NONE) "From (Required)" else "First Instance (Required)", fontSize = 7.sp, color = if (targetDate == null) MaterialTheme.colorScheme.error else Color.Gray)
+                                    Text("First Instance *", fontSize = 7.sp, color = if (targetDate == null) MaterialTheme.colorScheme.error else Color.Gray)
                                     Text(dateText, fontSize = 11.sp)
                                 }
                             }
@@ -935,30 +986,39 @@ fun TaskDialog(
                         }
                         
                         Box(modifier = Modifier.weight(1f)) {
-                            val isEndEnabled = targetDate != null
+                            val isEndDateSelectionEnabled = recurrenceType == RecurrenceType.DAILY
+                            val currentTargetDate = targetDate
+    val currentTargetEndDate = targetEndDate
+    val isEndDateInvalid = recurrenceType == RecurrenceType.DAILY &&
+                           currentTargetDate != null &&
+                           currentTargetEndDate != null &&
+                           currentTargetEndDate < currentTargetDate
                             OutlinedButton(
-                                onClick = { if (isEndEnabled) showToDatePicker = true },
+                                onClick = { if (isEndDateSelectionEnabled) showToDatePicker = true },
                                 modifier = Modifier.fillMaxWidth().height(44.dp),
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, if (isEndEnabled) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else Color.LightGray.copy(alpha = 0.3f)),
-                                enabled = isEndEnabled,
+                                border = BorderStroke(1.dp, if (isEndDateInvalid) MaterialTheme.colorScheme.error else if (isEndDateSelectionEnabled) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else Color.LightGray.copy(alpha = 0.3f)),
+                                enabled = isEndDateSelectionEnabled,
                                 contentPadding = PaddingValues(start = 4.dp, end = 24.dp)
                             ) {
                                 Icon(Icons.Default.Event, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 val dateText = targetEndDate?.let { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(it)) } ?: "To"
                                 Column {
-                                    Text("To", fontSize = 7.sp, color = if (isEndEnabled) Color.Gray else Color.LightGray)
-                                    Text(dateText, fontSize = 11.sp, color = if (isEndEnabled) Color.Unspecified else Color.LightGray)
+                                    Text(if (recurrenceType == RecurrenceType.DAILY) "To *" else "To", fontSize = 7.sp, color = if (recurrenceType == RecurrenceType.DAILY && targetEndDate == null) MaterialTheme.colorScheme.error else Color.Gray)
+                                    Text(dateText, fontSize = 11.sp, color = if (isEndDateSelectionEnabled) Color.Unspecified else Color.LightGray)
                                 }
                             }
-                            if (targetEndDate != null) {
+                            if (targetEndDate != null && isEndDateSelectionEnabled) {
                                 IconButton(
                                     onClick = { targetEndDate = null },
                                     modifier = Modifier.align(Alignment.CenterEnd).size(24.dp).padding(end = 2.dp)
                                 ) {
                                     Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(12.dp), tint = Color.Gray)
                                 }
+                            }
+                            if (isEndDateInvalid) {
+                                Text("End date must be after start date", color = MaterialTheme.colorScheme.error, fontSize = 8.sp, modifier = Modifier.padding(start = 4.dp))
                             }
                         }
                     }
@@ -969,7 +1029,7 @@ fun TaskDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         TimeButtonSmall(
-                            label = "Start (Required)",
+                            label = "Start *",
                             time = startTime, 
                             onClick = { showTimePickerForStart = true },
                             onClear = { startTime = null },
@@ -977,11 +1037,12 @@ fun TaskDialog(
                             isError = startTime == null
                         )
                         TimeButtonSmall(
-                            label = "End",
+                            label = "End *",
                             time = endTime, 
                             onClick = { showTimePickerForEnd = true },
                             onClear = { endTime = null },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            isError = endTime == null
                         )
                     }
                 }
@@ -1013,7 +1074,18 @@ fun TaskDialog(
         },
         confirmButton = {
             val isCategoryValid = if (isAddingCustomCategory) customCategory.isNotBlank() else availableCategories.contains(category)
-            val canSave = title.isNotBlank() && targetDate != null && startTime != null && isCategoryValid
+            var canSave = title.isNotBlank() && targetDate != null && startTime != null && endTime != null && isCategoryValid
+            val currentTargetDate = targetDate
+    val currentTargetEndDate = targetEndDate
+    val isEndDateInvalid = recurrenceType == RecurrenceType.DAILY &&
+                           currentTargetDate != null &&
+                           currentTargetEndDate != null &&
+                           currentTargetEndDate < currentTargetDate
+
+            // Validation for Daily recurrence: End date is required and must not be before start date
+            if (recurrenceType == RecurrenceType.DAILY && (targetEndDate == null || isEndDateInvalid)) {
+                canSave = false
+            }
             
             Button(
                 onClick = {
@@ -1025,13 +1097,19 @@ fun TaskDialog(
                             category = finalCategory,
                             subcategory = if (subcategory.isBlank()) null else subcategory,
                             priority = priority,
-                            targetDate = targetDate!!,
+                            targetDate = targetDate,
                             targetEndDate = targetEndDate,
                             startTime = startTime,
                             endTime = endTime,
                             recurrenceType = recurrenceType
                         )
                         onConfirm(updated)
+                    } else {
+                        // If Daily recurrence selected and targetEndDate is null, show a toast
+                        if (recurrenceType == RecurrenceType.DAILY && targetEndDate == null) {
+                            // In a real app, you'd show a Toast or Snackbar here.
+                            // For this environment, the disabled button and red border on "To" date serve as visual feedback.
+                        }
                     }
                 },
                 enabled = canSave,
@@ -1073,7 +1151,13 @@ fun TaskDialog(
             onDismissRequest = { showToDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    targetEndDate = datePickerState.selectedDateMillis
+                    val selected = datePickerState.selectedDateMillis
+                    val currentTargetDate = targetDate
+                    if (selected != null && currentTargetDate != null && selected < currentTargetDate) {
+                        targetEndDate = currentTargetDate // Set end date to start date if invalid
+                    } else {
+                        targetEndDate = selected
+                    }
                     showToDatePicker = false
                 }) { Text("OK") }
             }

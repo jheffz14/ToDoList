@@ -122,6 +122,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent) // Important: update the intent so handleIntent can see the new TASK_ID
         handleIntent(intent)
     }
 

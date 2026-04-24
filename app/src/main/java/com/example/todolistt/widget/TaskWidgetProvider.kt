@@ -35,7 +35,9 @@ class TaskWidgetProvider : AppWidgetProvider() {
         views.setEmptyView(R.id.widget_list, R.id.widget_empty_view)
 
         // Template for item clicks - MUST be FLAG_MUTABLE to allow fill-in intents to work
-        val clickIntent = Intent(context, MainActivity::class.java)
+        val clickIntent = Intent(context, MainActivity::class.java).apply {
+            action = "OPEN_TASK" // Add a specific action to ensure uniqueness
+        }
         val clickPendingIntent = PendingIntent.getActivity(
             context, 0, clickIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
