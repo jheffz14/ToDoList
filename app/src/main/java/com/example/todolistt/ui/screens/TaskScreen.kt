@@ -42,7 +42,7 @@ import java.util.*
 
 @Composable
 fun TaskScreen(
-    viewModel: TaskViewModel, 
+    viewModel: TaskViewModel,
     onNavigateToDashboard: () -> Unit,
     onNavigateToArchive: () -> Unit,
     initialTaskId: Int? = null
@@ -61,7 +61,7 @@ fun TaskScreen(
     var showManageCategoriesGlobal by remember { mutableStateOf(false) }
     var showClearConfirmDialog by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
     var showDeleteRecurrenceDialog by remember { mutableStateOf<Task?>(null) }
-    
+
     val selectedTasks = remember { mutableStateListOf<Int>() }
     var isSelectionMode by remember { mutableStateOf(false) }
 
@@ -87,7 +87,7 @@ fun TaskScreen(
                 ) {
                     if (isSelectionMode) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { 
+                            IconButton(onClick = {
                                 isSelectionMode = false
                                 selectedTasks.clear()
                             }) {
@@ -116,7 +116,29 @@ fun TaskScreen(
                             )
                         )
                         Row {
-                            IconButton(onClick = onNavigateToArchive) {
+                            var showHelpDialog by remember { mutableStateOf(false) }
+                        IconButton(onClick = { showHelpDialog = true }) {
+                            Icon(Icons.Default.HelpOutline, contentDescription = "Help")
+                        }
+
+                        if (showHelpDialog) {
+                            AlertDialog(
+                                onDismissRequest = { showHelpDialog = false },
+                                title = { Text("How to Use") },
+                                text = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text("• Tap + to add a task.", fontWeight = FontWeight.Bold)
+                                        Text("• Choose Recurrence (Today/Daily) to repeat tasks.")
+                                        Text("• Future daily recurring tasks are locked until they reach their target date.")
+                                        Text("• Swipe a task to the left to archive it.")
+                                        Text("• Use the filter chips for Status, Recurrence, or Category.")
+                                        Text("• Long-press a task to delete multiple items.")
+                                    }
+                                },
+                                confirmButton = { TextButton(onClick = { showHelpDialog = false }) { Text("Close") } }
+                            )
+                        }
+                        IconButton(onClick = onNavigateToArchive) {
                             Icon(Icons.Default.Archive, contentDescription = "View Archive")
                         }
                         IconButton(onClick = {
@@ -166,14 +188,14 @@ fun TaskScreen(
                             FilterChip(
                                 selected = true,
                                 onClick = { showMonthMenu = true },
-                                label = { 
+                                label = {
                                     val monthName = SimpleDateFormat("MMM yyyy", Locale.getDefault()).format(
                                         Calendar.getInstance().apply {
                                             set(Calendar.MONTH, selectedMonth)
                                             set(Calendar.YEAR, selectedYear)
                                         }.time
                                     )
-                                    Text(monthName, fontSize = 11.sp) 
+                                    Text(monthName, fontSize = 11.sp)
                                 },
                                 trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) },
                                 shape = RoundedCornerShape(12.dp)
@@ -216,15 +238,15 @@ fun TaskScreen(
                         modifier = Modifier.height(32.dp)
                     )
                             DropdownMenu(expanded = showStatusMenu, onDismissRequest = { showStatusMenu = false }) {
-                                DropdownMenuItem(text = { Text("All Status") }, onClick = { 
+                                DropdownMenuItem(text = { Text("All Status") }, onClick = {
                                     viewModel.setStatusFilter(null)
                                     showStatusMenu = false
                                 })
-                                DropdownMenuItem(text = { Text("Pending") }, onClick = { 
+                                DropdownMenuItem(text = { Text("Pending") }, onClick = {
                                     viewModel.setStatusFilter(TaskStatus.PENDING)
                                     showStatusMenu = false
                                 })
-                                DropdownMenuItem(text = { Text("Completed") }, onClick = { 
+                                DropdownMenuItem(text = { Text("Completed") }, onClick = {
                                     viewModel.setStatusFilter(TaskStatus.COMPLETED)
                                     showStatusMenu = false
                                 })
@@ -245,7 +267,7 @@ fun TaskScreen(
                         modifier = Modifier.height(32.dp)
                     )
                             DropdownMenu(expanded = showRecurrenceMenu, onDismissRequest = { showRecurrenceMenu = false }) {
-                                DropdownMenuItem(text = { Text("All Recurrences") }, onClick = { 
+                                DropdownMenuItem(text = { Text("All Recurrences") }, onClick = {
                                     viewModel.setRecurrenceFilter(null)
                                     showRecurrenceMenu = false
                                 })
@@ -276,13 +298,13 @@ fun TaskScreen(
                         modifier = Modifier.height(32.dp)
                     )
                             DropdownMenu(
-                                expanded = showCategoryMenu, 
+                                expanded = showCategoryMenu,
                                 onDismissRequest = { showCategoryMenu = false },
                                 modifier = Modifier.widthIn(min = 200.dp)
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("All Categories") }, 
-                                    onClick = { 
+                                    text = { Text("All Categories") },
+                                    onClick = {
                                         viewModel.setCategoryFilter(null)
                                         showCategoryMenu = false
                                     },
@@ -293,7 +315,7 @@ fun TaskScreen(
                                     val isSelected = selectedCategory == category
                                     DropdownMenuItem(
                                         text = { Text(category) },
-                                        onClick = { 
+                                        onClick = {
                                             viewModel.setCategoryFilter(category)
                                             showCategoryMenu = false
                                         },
@@ -310,9 +332,9 @@ fun TaskScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { 
+                onClick = {
                     taskToEdit = null
-                    showDialog = true 
+                    showDialog = true
                 },
                 containerColor = SketchPrimary,
                 shape = CircleShape,
@@ -366,10 +388,12 @@ fun TaskScreen(
                         task = task,
                         onToggleStatus = { newStatus -> viewModel.updateTaskStatus(task, newStatus) },
                         onDelete = {
-                            if (task.recurrenceType != RecurrenceType.NONE) {
-                                showDeleteRecurrenceDialog = task
-                            } else {
-                                viewModel.deleteTask(task)
+                            showClearConfirmDialog = "Are you sure you want to delete this task?" to {
+                                if (task.recurrenceType != RecurrenceType.NONE) {
+                                    showDeleteRecurrenceDialog = task
+                                } else {
+                                    viewModel.deleteTask(task)
+                                }
                             }
                         },
                         onArchive = { viewModel.archiveTask(task) },
@@ -431,9 +455,9 @@ fun TaskScreen(
                             viewModel.deleteTask(showDeleteRecurrenceDialog!!, deleteFuture = false)
                             showDeleteRecurrenceDialog = null
                         }) { Text("JUST THIS ONCE", color = SketchPrimary) }
-                        
-                        TextButton(onClick = { showDeleteRecurrenceDialog = null }) { 
-                            Text("CANCEL", color = Color.Gray) 
+
+                        TextButton(onClick = { showDeleteRecurrenceDialog = null }) {
+                            Text("CANCEL", color = Color.Gray)
                         }
                     }
                 }
@@ -493,24 +517,42 @@ fun SketchTaskItem(
     isSelected: Boolean = false
 ) {
     val dateFormatter = remember { SimpleDateFormat("MMM dd", Locale.getDefault()) }
-    val timeFormatter = remember { 
+    val timeFormatter = remember {
         SimpleDateFormat("h:mm a", Locale.getDefault()).apply {
             timeZone = TimeZone.getTimeZone("UTC")
         }
     }
     // Removed unused state: var showStatusMenu by remember { mutableStateOf(false) }
 
-    val isFutureDailyTask = remember(task.recurrenceType, task.targetDate) {
+    val isFutureDailyTask = remember(task.recurrenceType, task.targetDate, task.startTime, task.targetEndDate) {
         if (task.recurrenceType == RecurrenceType.DAILY && task.targetDate != null) {
-            val today = Calendar.getInstance().apply { 
+            val now = Calendar.getInstance()
+            val todayStart = (now.clone() as Calendar).apply {
                 set(Calendar.HOUR_OF_DAY, 0)
                 set(Calendar.MINUTE, 0)
                 set(Calendar.SECOND, 0)
                 set(Calendar.MILLISECOND, 0)
             }.timeInMillis
-            // It is only "future" if the target date is strictly after today.
-            // If it's today, it is NOT a future task and can be marked completed.
-            task.targetDate > today
+
+            // Logic: The checkbox should ONLY be visible when today is the targetEndDate.
+            // If the date range is Apr 24 - Apr 25, it should be hidden on Apr 24
+            // and only appear on Apr 25.
+            val finalTargetDate = task.targetEndDate ?: task.targetDate!!
+
+            if (finalTargetDate > todayStart) {
+                // Today is before the target (e.g., today is Apr 24, target is Apr 25)
+                true
+            } else if (finalTargetDate == todayStart) {
+                // Today IS the target date: check if start time has passed
+                task.startTime?.let { startTimeMillis ->
+                    val currentMillisFromDayStart = (now.get(Calendar.HOUR_OF_DAY) * 3600000L) +
+                                                   (now.get(Calendar.MINUTE) * 60000L)
+                    currentMillisFromDayStart < startTimeMillis
+                } ?: false
+            } else {
+                // Past the target date
+                false
+            }
         } else {
             false
         }
@@ -586,14 +628,19 @@ fun SketchTaskItem(
                 )
                 .border(
                     width = if (isSelected) 3.dp else 2.dp,
-                    color = if (isSelected) SketchPrimary else if (isNear && task.status != TaskStatus.COMPLETED) SketchError else MaterialTheme.colorScheme.onBackground,
+                    color = if (isSelected) SketchPrimary
+                            else if (isFutureDailyTask) Color(0xFFFF9800)
+                            else if (isNear && task.status != TaskStatus.COMPLETED) SketchError
+                            else MaterialTheme.colorScheme.onBackground,
                     shape = RoundedCornerShape(16.dp)
                 ),
+            // Highlight recurring tasks with a subtle background color change if they are not active
             colors = CardDefaults.cardColors(
                 containerColor = if (isSelected) SketchPrimary.copy(alpha = 0.2f)
-                                 else if (task.status == TaskStatus.PENDING) SketchPrimary.copy(alpha = 0.1f) 
-                                 else if (isNear && task.status != TaskStatus.COMPLETED) SketchError.copy(alpha = 0.05f) 
-                                 else MaterialTheme.colorScheme.surface
+                else if (isFutureDailyTask) MaterialTheme.colorScheme.surface.copy(alpha = 0.8f) // Adjusted for better night mode contrast
+                else if (task.status == TaskStatus.PENDING) MaterialTheme.colorScheme.surface
+                else if (isNear && task.status != TaskStatus.COMPLETED) SketchError.copy(alpha = 0.05f)
+                else MaterialTheme.colorScheme.surface
             ),
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -608,18 +655,23 @@ fun SketchTaskItem(
                     Icon(Icons.Default.CheckCircle, contentDescription = "Selected", tint = SketchPrimary, modifier = Modifier.padding(end = 12.dp))
                 }
 
-                IconButton(
-                    onClick = { onToggleStatus(if (task.status == TaskStatus.COMPLETED) TaskStatus.PENDING else TaskStatus.COMPLETED) },
-                    enabled = !isFutureDailyTask
-                ) {
-                    val icon = if (task.status == TaskStatus.COMPLETED) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank
-                    Icon(
-                        icon,
-                        contentDescription = "Toggle status",
-                        tint = if (task.status == TaskStatus.COMPLETED) SketchPrimary else if (isNear) SketchError else Color.Gray
-                    )
-                }
-                
+                    // Task Checkbox (Only visible if active)
+                    if (!isFutureDailyTask) {
+                        IconButton(
+                            onClick = { onToggleStatus(if (task.status == TaskStatus.COMPLETED) TaskStatus.PENDING else TaskStatus.COMPLETED) }
+                        ) {
+                            val icon = if (task.status == TaskStatus.COMPLETED) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank
+                            Icon(
+                                icon,
+                                contentDescription = "Toggle status",
+                                tint = if (task.status == TaskStatus.COMPLETED) SketchPrimary else if (isNear) SketchError else Color.Gray
+                            )
+                        }
+                    } else {
+                        // Spacer to keep layout consistent when checkbox is hidden
+                        Spacer(modifier = Modifier.size(48.dp))
+                    }
+
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -639,7 +691,7 @@ fun SketchTaskItem(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .background(
-                                        if (isFinalInstance) Color(0xFFFFD700).copy(alpha = 0.2f) else SketchPrimary.copy(alpha = 0.1f), 
+                                        if (isFinalInstance) Color(0xFFFFE4B5).copy(alpha = 0.5f) else Color(0xFFFF9800).copy(alpha = 0.2f),
                                         RoundedCornerShape(4.dp)
                                     )
                                     .padding(horizontal = 4.dp, vertical = 2.dp)
@@ -647,14 +699,14 @@ fun SketchTaskItem(
                                 Icon(
                                     if (isFinalInstance) Icons.Default.Flag else Icons.Default.Sync,
                                     contentDescription = null,
-                                    tint = if (isFinalInstance) Color(0xFFFFD700) else SketchPrimary,
+                                    tint = if (isFinalInstance) Color(0xFFDAA520) else Color(0xFFEF6C00),
                                     modifier = Modifier.size(12.dp)
                                 )
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Text(
                                     if (isFinalInstance) "Final" else task.recurrenceType.name.lowercase().replaceFirstChar { it.uppercase() },
                                     fontSize = 10.sp,
-                                    color = if (isFinalInstance) Color(0xFFB8860B) else SketchPrimary,
+                                    color = if (isFinalInstance) Color(0xFFB8860B) else Color(0xFFE65100),
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -663,14 +715,14 @@ fun SketchTaskItem(
                         if (isNear && task.status != TaskStatus.COMPLETED) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(
-                                Icons.Default.Warning, 
-                                contentDescription = "Near", 
+                                Icons.Default.Warning,
+                                contentDescription = "Near",
                                 tint = SketchError,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
                     }
-                    
+
                     if (task.subcategory != null) {
                         Text(
                             text = task.subcategory,
@@ -679,7 +731,7 @@ fun SketchTaskItem(
                             modifier = Modifier.padding(bottom = 2.dp)
                         )
                     }
-                    
+
                     Column( // Changed from Row to Column to stack date/time and category if needed for space
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
@@ -692,7 +744,7 @@ fun SketchTaskItem(
                                 } else {
                                     dateFormatter.format(Date(task.targetDate ?: 0L))
                                 },
-                                fontSize = 11.sp, 
+                                fontSize = 11.sp,
                                 color = Color.Gray
                             )
                         }
@@ -707,7 +759,7 @@ fun SketchTaskItem(
                                     } else {
                                         timeFormatter.format(Date(task.startTime))
                                     },
-                                    fontSize = 11.sp, 
+                                    fontSize = 11.sp,
                                     color = Color.Gray
                                 )
                             }
@@ -768,13 +820,13 @@ fun TaskDialog(
     var isAddingCustomCategory by remember { mutableStateOf(false) }
     var subcategory by remember { mutableStateOf(task?.subcategory ?: "") }
     var priority by remember { mutableStateOf(task?.priority ?: Priority.MEDIUM) }
-    
+
     var categorySearchQuery by remember { mutableStateOf("") }
-    
+
     var showFromDatePicker by remember { mutableStateOf(false) }
     var showToDatePicker by remember { mutableStateOf(false) }
-    
-    var targetDate by remember { 
+
+    var targetDate by remember {
         mutableStateOf<Long?>(task?.targetDate ?: Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
@@ -785,13 +837,13 @@ fun TaskDialog(
     var targetEndDate by remember { mutableStateOf(task?.targetEndDate) }
     var recurrenceType by remember { mutableStateOf(task?.recurrenceType ?: RecurrenceType.NONE) }
 
-    var startTime by remember { 
+    var startTime by remember {
         mutableStateOf<Long?>(task?.startTime ?: Calendar.getInstance().let {
             (it.get(Calendar.HOUR_OF_DAY) * 3600000L) + (it.get(Calendar.MINUTE) * 60000L)
-        }) 
+        })
     }
     var endTime by remember { mutableStateOf(task?.endTime) }
-    
+
     var showTimePickerForStart by remember { mutableStateOf(false) }
     var showTimePickerForEnd by remember { mutableStateOf(false) }
 
@@ -804,16 +856,16 @@ fun TaskDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier.padding(12.dp).fillMaxWidth(),
-        title = { 
+        title = {
             Text(
-                if (task == null) "NEW TASK" else "EDIT TASK", 
-                fontWeight = FontWeight.ExtraBold, 
+                if (task == null) "NEW TASK" else "EDIT TASK",
+                fontWeight = FontWeight.ExtraBold,
                 fontSize = 20.sp
-            ) 
+            )
         },
         text = {
             Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()).padding(vertical = 4.dp), 
+                modifier = Modifier.verticalScroll(rememberScrollState()).padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 OutlinedTextField(
@@ -841,8 +893,8 @@ fun TaskDialog(
                         AlertDialog(
                             onDismissRequest = { showRecurrenceInfo = false },
                             title = { Text("About Recurrence", fontSize = 16.sp, fontWeight = FontWeight.Bold) },
-                            text = { 
-                                Text("A recurring task automatically creates its next instance once the current one is completed. This ensures you never miss repeated duties.", fontSize = 12.sp) 
+                            text = {
+                                Text("A recurring task automatically creates its next instance once the current one is completed. This ensures you never miss repeated duties.", fontSize = 12.sp)
                             },
                             confirmButton = { TextButton(onClick = { showRecurrenceInfo = false }) { Text("Got it") } }
                         )
@@ -856,14 +908,14 @@ fun TaskDialog(
                         // Only show NONE and DAILY recurrence types
                         listOf(RecurrenceType.NONE, RecurrenceType.DAILY).forEach { type ->
                             val isSelected = recurrenceType == type
-                            FilterChip(
+                        FilterChip(
                                 selected = isSelected,
                                 onClick = {
                                     recurrenceType = type
                                     if (type == RecurrenceType.NONE) {
-                                        // When "Today (One-time)" is selected, ensure no end date is set
                                         targetEndDate = null
-                                        // Also ensure targetDate is set to today's date if it's null (though it's usually initialized to today)
+                                    } else {
+                                        // When Daily, ensure a valid targetDate exists
                                         if (targetDate == null) {
                                             targetDate = Calendar.getInstance().apply {
                                                 set(Calendar.HOUR_OF_DAY, 0)
@@ -897,46 +949,51 @@ fun TaskDialog(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     val isCategoryValid = if (isAddingCustomCategory) customCategory.isNotBlank() else availableCategories.contains(category)
                     Text(
-                        "Category *", 
-                        style = MaterialTheme.typography.titleSmall, 
-                        fontWeight = FontWeight.Bold, 
+                        "Category *",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
                         color = if (!isCategoryValid) MaterialTheme.colorScheme.error else Color.Unspecified
                     )
-                    
-                    OutlinedTextField(
-                        value = categorySearchQuery,
-                        onValueChange = { categorySearchQuery = it },
-                        placeholder = { Text("Search category...", fontSize = 11.sp) },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodySmall
-                    )
 
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        contentPadding = PaddingValues(vertical = 2.dp)
-                    ) {
-                        item {
-                            FilterChip(
-                                selected = isAddingCustomCategory,
-                                onClick = { isAddingCustomCategory = true },
-                                label = { Text("+ Custom", fontSize = 10.sp) },
-                                modifier = Modifier.height(28.dp)
-                            )
+                    // Category Dropdown Selection
+                    var expanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { expanded = true },
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                        ) {
+                            Text(if (isAddingCustomCategory) customCategory else category, modifier = Modifier.weight(1f))
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                         }
-                        items(filteredCategories) { cat ->
-                            FilterChip(
-                                selected = category == cat && !isAddingCustomCategory,
-                                onClick = { 
-                                    category = cat
-                                    isAddingCustomCategory = false
-                                },
-                                label = { Text(cat, fontSize = 10.sp) },
-                                modifier = Modifier.height(28.dp)
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                            modifier = Modifier.fillMaxWidth(0.9f)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("+ Add Custom Category") },
+                                onClick = {
+                                    isAddingCustomCategory = true
+                                    expanded = false
+                                }
                             )
+                            HorizontalDivider()
+                            availableCategories.forEach { cat ->
+                                DropdownMenuItem(
+                                    text = { Text(cat) },
+                                    onClick = {
+                                        category = cat
+                                        isAddingCustomCategory = false
+                                        expanded = false
+                                    },
+                                    leadingIcon = {
+                                        if (category == cat && !isAddingCustomCategory) Icon(Icons.Default.Check, null)
+                                    }
+                                )
+                            }
                         }
                     }
 
@@ -944,12 +1001,12 @@ fun TaskDialog(
                         OutlinedTextField(
                             value = customCategory,
                             onValueChange = { customCategory = it },
-                            label = { Text("Custom Category", fontSize = 11.sp) },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            label = { Text("Custom Category Name *", fontSize = 11.sp) },
+                            modifier = Modifier.fillMaxWidth().height(60.dp),
                             shape = RoundedCornerShape(12.dp),
-                            textStyle = MaterialTheme.typography.bodySmall,
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
                             isError = customCategory.isBlank(),
-                            supportingText = if (customCategory.isBlank()) { { Text("Required", fontSize = 8.sp) } } else null
+                            supportingText = { if (customCategory.isBlank()) Text("Required", fontSize = 10.sp) }
                         )
                     }
                 }
@@ -982,7 +1039,7 @@ fun TaskDialog(
                                 }
                             }
                         }
-                        
+
                         Box(modifier = Modifier.weight(1f)) {
                             val isEndDateSelectionEnabled = recurrenceType == RecurrenceType.DAILY
                             val currentTargetDate = targetDate
@@ -1028,7 +1085,7 @@ fun TaskDialog(
                     ) {
                         TimeButtonSmall(
                             label = "Start *",
-                            time = startTime, 
+                            time = startTime,
                             onClick = { showTimePickerForStart = true },
                             onClear = { startTime = null },
                             modifier = Modifier.weight(1f),
@@ -1036,7 +1093,7 @@ fun TaskDialog(
                         )
                         TimeButtonSmall(
                             label = "End *",
-                            time = endTime, 
+                            time = endTime,
                             onClick = { showTimePickerForEnd = true },
                             onClear = { endTime = null },
                             modifier = Modifier.weight(1f),
@@ -1084,7 +1141,7 @@ fun TaskDialog(
             if (recurrenceType == RecurrenceType.DAILY && (targetEndDate == null || isEndDateInvalid)) {
                 canSave = false
             }
-            
+
             Button(
                 onClick = {
                     if (canSave) {
@@ -1186,8 +1243,8 @@ fun ManageCategoriesDialog(
     onDelete: (String) -> Unit
 ) {
     val defaults = listOf("Personal", "Work", "Meeting", "Others")
-    val customCategories = categories.filter { cat -> 
-        defaults.none { it.equals(cat, ignoreCase = true) } 
+    val customCategories = categories.filter { cat ->
+        defaults.none { it.equals(cat, ignoreCase = true) }
     }
 
     AlertDialog(
@@ -1218,8 +1275,8 @@ fun ManageCategoriesDialog(
         },
         confirmButton = {
             Button(
-                onClick = onDismiss, 
-                border = BorderStroke(2.dp, MaterialTheme.colorScheme.onBackground), 
+                onClick = onDismiss,
+                border = BorderStroke(2.dp, MaterialTheme.colorScheme.onBackground),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = SketchPrimary)
             ) {
@@ -1273,7 +1330,7 @@ fun TimeButtonSmall(
     isError: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val formatter = remember { 
+    val formatter = remember {
         SimpleDateFormat("h:mm a", Locale.getDefault()).apply {
             timeZone = TimeZone.getTimeZone("UTC")
         }
@@ -1292,10 +1349,10 @@ fun TimeButtonSmall(
             Column {
                 Text(label, fontSize = 7.sp, color = if (isError) MaterialTheme.colorScheme.error else if (enabled) Color.Gray else Color.LightGray)
                 Text(
-                    time?.let { 
-                        formatter.format(Date(it)) 
-                    } ?: "--:--", 
-                    fontSize = 11.sp, 
+                    time?.let {
+                        formatter.format(Date(it))
+                    } ?: "--:--",
+                    fontSize = 11.sp,
                     color = if (isError) MaterialTheme.colorScheme.error else if (enabled) Color.Unspecified else Color.LightGray
                 )
             }
