@@ -525,33 +525,28 @@ fun SketchTaskItem(
     // Removed unused state: var showStatusMenu by remember { mutableStateOf(false) }
 
     val isFutureDailyTask = remember(task.recurrenceType, task.targetDate, task.startTime, task.targetEndDate) {
-        if (task.recurrenceType == RecurrenceType.DAILY && task.targetDate != null) {
+        if (task.recurrenceType == RecurrenceType.DAILY && (task.targetDate != null || task.targetEndDate != null)) {
             val now = Calendar.getInstance()
-            val todayStart = (now.clone() as Calendar).apply {
-                set(Calendar.HOUR_OF_DAY, 0)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
-            }.timeInMillis
-
-            // Logic: The checkbox should ONLY be visible when today is the targetEndDate.
-            // If the date range is Apr 24 - Apr 25, it should be hidden on Apr 24
-            // and only appear on Apr 25.
             val finalTargetDate = task.targetEndDate ?: task.targetDate!!
+            val targetCal = Calendar.getInstance().apply { timeInMillis = finalTargetDate }
+            
+            val isFutureDay = targetCal.get(Calendar.YEAR) > now.get(Calendar.YEAR) ||
+                (targetCal.get(Calendar.YEAR) == now.get(Calendar.YEAR) && targetCal.get(Calendar.DAY_OF_YEAR) > now.get(Calendar.DAY_OF_YEAR))
+            
+            val isToday = targetCal.get(Calendar.YEAR) == now.get(Calendar.YEAR) && 
+                targetCal.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR)
 
-            if (finalTargetDate > todayStart) {
-                // Today is before the target (e.g., today is Apr 24, target is Apr 25)
-                true
-            } else if (finalTargetDate == todayStart) {
-                // Today IS the target date: check if start time has passed
+            if (isFutureDay) {
+                true // Target day is in the future
+            } else if (isToday) {
+                // Today is the target day, check if start time has passed
                 task.startTime?.let { startTimeMillis ->
                     val currentMillisFromDayStart = (now.get(Calendar.HOUR_OF_DAY) * 3600000L) +
                                                    (now.get(Calendar.MINUTE) * 60000L)
                     currentMillisFromDayStart < startTimeMillis
                 } ?: false
             } else {
-                // Past the target date
-                false
+                false // Target day has already passed
             }
         } else {
             false
