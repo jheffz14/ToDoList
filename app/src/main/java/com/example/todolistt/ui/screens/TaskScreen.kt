@@ -207,13 +207,14 @@ fun TaskScreen(
                         var showStatusMenu by remember { mutableStateOf(false) }
 
                         Box {
-                            FilterChip(
-                                selected = selectedStatus != null,
-                                onClick = { showStatusMenu = true },
-                                label = { Text(selectedStatus?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "All Status", fontSize = 11.sp) },
-                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                                shape = RoundedCornerShape(12.dp)
-                            )
+                    FilterChip(
+                        selected = selectedStatus != null,
+                        onClick = { showStatusMenu = true },
+                        label = { Text(selectedStatus?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Status", fontSize = 10.sp) },
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(12.dp)) },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(32.dp)
+                    )
                             DropdownMenu(expanded = showStatusMenu, onDismissRequest = { showStatusMenu = false }) {
                                 DropdownMenuItem(text = { Text("All Status") }, onClick = { 
                                     viewModel.setStatusFilter(null)
@@ -235,13 +236,14 @@ fun TaskScreen(
                         // Recurrence Filter Dropdown
                         var showRecurrenceMenu by remember { mutableStateOf(false) }
                         Box {
-                            FilterChip(
-                                selected = selectedRecurrence != null,
-                                onClick = { showRecurrenceMenu = true },
-                                label = { Text(selectedRecurrence?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Recurrence", fontSize = 11.sp) },
-                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                                shape = RoundedCornerShape(12.dp)
-                            )
+                    FilterChip(
+                        selected = selectedRecurrence != null,
+                        onClick = { showRecurrenceMenu = true },
+                        label = { Text(selectedRecurrence?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Recurrence", fontSize = 10.sp) },
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(12.dp)) },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(32.dp)
+                    )
                             DropdownMenu(expanded = showRecurrenceMenu, onDismissRequest = { showRecurrenceMenu = false }) {
                                 DropdownMenuItem(text = { Text("All Recurrences") }, onClick = { 
                                     viewModel.setRecurrenceFilter(null)
@@ -265,15 +267,14 @@ fun TaskScreen(
                         // Category Filter Dropdown (Single-select)
                         var showCategoryMenu by remember { mutableStateOf(false) }
                         Box {
-                            FilterChip(
-                                selected = selectedCategory != null,
-                                onClick = { showCategoryMenu = true },
-                                label = { 
-                                    Text(selectedCategory ?: "Categories", fontSize = 11.sp) 
-                                },
-                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                                shape = RoundedCornerShape(12.dp)
-                            )
+                    FilterChip(
+                        selected = selectedCategory != null,
+                        onClick = { showCategoryMenu = true },
+                        label = { Text(selectedCategory ?: "Category", fontSize = 10.sp) },
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(12.dp)) },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(32.dp)
+                    )
                             DropdownMenu(
                                 expanded = showCategoryMenu, 
                                 onDismissRequest = { showCategoryMenu = false },
@@ -611,14 +612,11 @@ fun SketchTaskItem(
                     onClick = { onToggleStatus(if (task.status == TaskStatus.COMPLETED) TaskStatus.PENDING else TaskStatus.COMPLETED) },
                     enabled = !isFutureDailyTask
                 ) {
-                    val icon = when (task.status) {
-                        TaskStatus.COMPLETED -> Icons.Default.CheckCircle
-                        else -> Icons.Default.RadioButtonUnchecked
-                    }
+                    val icon = if (task.status == TaskStatus.COMPLETED) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank
                     Icon(
                         icon,
-                        contentDescription = if (isFutureDailyTask) "Task not yet active" else "Toggle status",
-                        tint = if (isFutureDailyTask) Color.LightGray else if (task.status == TaskStatus.COMPLETED) SketchPrimary else if (isNear) SketchError else MaterialTheme.colorScheme.onBackground
+                        contentDescription = "Toggle status",
+                        tint = if (task.status == TaskStatus.COMPLETED) SketchPrimary else if (isNear) SketchError else Color.Gray
                     )
                 }
                 
