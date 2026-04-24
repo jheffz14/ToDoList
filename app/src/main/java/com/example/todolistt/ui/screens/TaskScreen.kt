@@ -612,6 +612,7 @@ fun SketchTaskItem(
                     RecurrenceType.YEARLY -> calendar.add(Calendar.YEAR, 1)
                     else -> {}
                 }
+                // If adding the next interval makes it go past the end date, it's the final instance
                 calendar.timeInMillis > task.targetEndDate
             }
         }
@@ -975,17 +976,7 @@ fun TaskDialog(
                                 singleLine = true
                             )
                         } else {
-                            // "custom add category is left"
-                            IconButton(
-                                onClick = { isAddingCustomCategory = true },
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .border(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = "Add Custom", tint = SketchPrimary)
-                            }
-
-                            // "category is right"
+                            // Category Dropdown on the left (weight 1f)
                             var expanded by remember { mutableStateOf(false) }
                             Box(modifier = Modifier.weight(1f)) {
                                 OutlinedButton(
@@ -1016,6 +1007,16 @@ fun TaskDialog(
                                         )
                                     }
                                 }
+                            }
+
+                            // Add Custom button on the right
+                            IconButton(
+                                onClick = { isAddingCustomCategory = true },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .border(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Add Custom", tint = SketchPrimary)
                             }
                         }
                     }

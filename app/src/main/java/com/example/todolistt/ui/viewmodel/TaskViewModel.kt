@@ -344,8 +344,18 @@ class TaskViewModel(
                 endTime = endTime,
                 recurrenceType = recurrenceType
             )
-            val id = repository.insert(task).toInt()
-            ReminderManager.scheduleReminder(context, task.copy(id = id))
+
+            val reminderTime = ReminderManager.getReminderTime(task)
+            val finalTask = if (recurrenceType != RecurrenceType.NONE && reminderTime < System.currentTimeMillis() - 60000) {
+                val nextDate = calculateNextDate(task)
+                // If it's a recurring task and the first occurrence is in the past, auto-advance to next
+                task.copy(targetDate = nextDate)
+            } else {
+                task
+            }
+
+            val id = repository.insert(finalTask).toInt()
+            ReminderManager.scheduleReminder(context, finalTask.copy(id = id))
             updateWidget()
         }
     }

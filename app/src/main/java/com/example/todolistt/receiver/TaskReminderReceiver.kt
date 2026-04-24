@@ -73,12 +73,14 @@ class TaskReminderReceiver : BroadcastReceiver() {
                 enableLights(true)
                 enableVibration(true)
                 setShowBadge(true)
+                setBypassDnd(true)
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
             notificationManager.createNotificationChannel(channel)
         }
 
         val activityIntent = Intent(context, MainActivity::class.java).apply {
+            action = "OPEN_TASK"
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("TASK_ID", taskId)
         }
@@ -113,16 +115,17 @@ class TaskReminderReceiver : BroadcastReceiver() {
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("Task Reminder: $taskTitle")
-            .setContentText("Snooze for 10m or Dismiss to close.")
+            .setContentText("Tap to view details")
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
+            .setOngoing(true)
             .setFullScreenIntent(pendingIntent, true)
             .setContentIntent(pendingIntent)
             .addAction(0, "Snooze (10m)", snoozePendingIntent)
             .addAction(0, "Dismiss", dismissPendingIntent)
-            .setDeleteIntent(dismissPendingIntent) // Also dismiss when swiped away
+            .setDeleteIntent(dismissPendingIntent)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
 
