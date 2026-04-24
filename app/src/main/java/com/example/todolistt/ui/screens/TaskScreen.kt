@@ -28,6 +28,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.todolistt.data.local.Priority
@@ -867,7 +869,7 @@ fun TaskDialog(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("Task Title *", fontSize = 12.sp) },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     textStyle = MaterialTheme.typography.bodyMedium,
                     isError = title.isBlank(),
@@ -951,58 +953,71 @@ fun TaskDialog(
                         color = if (!isCategoryValid) MaterialTheme.colorScheme.error else Color.Unspecified
                     )
 
-                    // Category Dropdown Selection
-                    var expanded by remember { mutableStateOf(false) }
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(
-                            onClick = { expanded = true },
-                            modifier = Modifier.fillMaxWidth().height(50.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
-                        ) {
-                            Text(if (isAddingCustomCategory) customCategory else category, modifier = Modifier.weight(1f))
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                        }
-                        DropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false },
-                            modifier = Modifier.fillMaxWidth(0.9f)
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("+ Add Custom Category") },
-                                onClick = {
-                                    isAddingCustomCategory = true
-                                    expanded = false
-                                }
-                            )
-                            HorizontalDivider()
-                            availableCategories.forEach { cat ->
-                                DropdownMenuItem(
-                                    text = { Text(cat) },
-                                    onClick = {
-                                        category = cat
-                                        isAddingCustomCategory = false
-                                        expanded = false
-                                    },
-                                    leadingIcon = {
-                                        if (category == cat && !isAddingCustomCategory) Icon(Icons.Default.Check, null)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (isAddingCustomCategory) {
+                            OutlinedTextField(
+                                value = customCategory,
+                                onValueChange = { customCategory = it },
+                                label = { Text("Custom Category Name *", fontSize = 11.sp) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+                                isError = customCategory.isBlank(),
+                                trailingIcon = {
+                                    IconButton(onClick = { isAddingCustomCategory = false; customCategory = "" }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Cancel", modifier = Modifier.size(20.dp))
                                     }
-                                )
+                                },
+                                singleLine = true
+                            )
+                        } else {
+                            // "custom add category is left"
+                            IconButton(
+                                onClick = { isAddingCustomCategory = true },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .border(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Add Custom", tint = SketchPrimary)
+                            }
+
+                            // "category is right"
+                            var expanded by remember { mutableStateOf(false) }
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedButton(
+                                    onClick = { expanded = true },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)),
+                                    contentPadding = PaddingValues(horizontal = 12.dp)
+                                ) {
+                                    Text(category, modifier = Modifier.weight(1f), textAlign = TextAlign.Start, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                }
+                                DropdownMenu(
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false },
+                                    modifier = Modifier.fillMaxWidth(0.7f)
+                                ) {
+                                    availableCategories.forEach { cat ->
+                                        DropdownMenuItem(
+                                            text = { Text(cat) },
+                                            onClick = {
+                                                category = cat
+                                                expanded = false
+                                            },
+                                            leadingIcon = {
+                                                if (category == cat) Icon(Icons.Default.Check, null, modifier = Modifier.size(18.dp))
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         }
-                    }
-
-                    if (isAddingCustomCategory) {
-                        OutlinedTextField(
-                            value = customCategory,
-                            onValueChange = { customCategory = it },
-                            label = { Text("Custom Category Name *", fontSize = 11.sp) },
-                            modifier = Modifier.fillMaxWidth().height(60.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
-                            isError = customCategory.isBlank(),
-                            supportingText = { if (customCategory.isBlank()) Text("Required", fontSize = 10.sp) }
-                        )
                     }
                 }
 
