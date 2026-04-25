@@ -160,7 +160,7 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                             today.get(Calendar.YEAR)
                         )
                     }) {
-                        Icon(Icons.Default.Today, contentDescription = "Today", tint = SketchPrimary)
+                        Icon(Icons.Default.Today, contentDescription = "One-Time", tint = SketchPrimary)
                     }
                 }
             }

@@ -130,7 +130,7 @@ fun TaskScreen(
                                 text = {
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Text("• Tap + to add a task.", fontWeight = FontWeight.Bold)
-                                        Text("• Choose Recurrence (Today/Daily) to repeat tasks.")
+                                        Text("• Choose Recurrence (One-Time/Daily) to repeat tasks.")
                                         Text("• Future daily recurring tasks are locked until they reach their target date.")
                                         Text("• Swipe a task to the left to archive it.")
                                         Text("• Use the filter chips for Status, Recurrence, or Category.")
@@ -276,7 +276,7 @@ fun TaskScreen(
                                 // Only show Today (NONE) and Daily in the filter
                                 listOf(RecurrenceType.NONE, RecurrenceType.DAILY).forEach { type ->
                                     DropdownMenuItem(
-                                        text = { Text(if (type == RecurrenceType.NONE) "Today" else type.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                                        text = { Text(if (type == RecurrenceType.NONE) "One-Time" else type.name.lowercase().replaceFirstChar { it.uppercase() }) },
                                         onClick = {
                                             viewModel.setRecurrenceFilter(type)
                                             showRecurrenceMenu = false
@@ -926,7 +926,7 @@ fun TaskDialog(
                                 },
                                 label = {
                                     Text(
-                                        text = if (type == RecurrenceType.NONE) "Today"
+                                        text = if (type == RecurrenceType.NONE) "One-Time"
                                                else type.name.lowercase().replaceFirstChar { it.uppercase() },
                                         fontSize = 10.sp,
                                         fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold
