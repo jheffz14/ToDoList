@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DarkMode
@@ -48,14 +49,38 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
     val categories by viewModel.categories.collectAsState()
     val selectedMonth by viewModel.selectedMonth.collectAsState()
     val selectedYear by viewModel.selectedYear.collectAsState()
+    val isRangeFilter by viewModel.isRangeFilter.collectAsState()
+    val endMonth by viewModel.endMonth.collectAsState()
+    val endYear by viewModel.endYear.collectAsState()
     
     var timeFilter by remember { mutableStateOf("All") }
     var showTimeFilterMenu by remember { mutableStateOf(false) }
     var showManageCategoriesGlobal by remember { mutableStateOf(false) }
+    var showMonthMenu by remember { mutableStateOf(false) }
+    var showRangeDialog by remember { mutableStateOf(false) }
 
-    val monthName = remember(selectedMonth) {
-        val cal = Calendar.getInstance().apply { set(Calendar.MONTH, selectedMonth) }
-        SimpleDateFormat("MMMM", Locale.getDefault()).format(cal.time)
+    val dateLabel = remember(selectedMonth, selectedYear, isRangeFilter, endMonth, endYear) {
+        if (isRangeFilter) {
+            val startCal = Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.MONTH, selectedMonth)
+                set(Calendar.YEAR, selectedYear)
+            }
+            val endCal = Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.MONTH, endMonth)
+                set(Calendar.YEAR, endYear)
+            }
+            val df = SimpleDateFormat("MMM yyyy", Locale.getDefault())
+            "${df.format(startCal.time)} - ${df.format(endCal.time)}"
+        } else {
+            val cal = Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.MONTH, selectedMonth)
+                set(Calendar.YEAR, selectedYear)
+            }
+            SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
+        }
     }
 
     Scaffold(
@@ -120,10 +145,49 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { showMonthMenu = true }
+                    ) {
                         Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = SketchPrimary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("$monthName $selectedYear", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text(dateLabel, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                        DropdownMenu(
+                            expanded = showMonthMenu,
+                            onDismissRequest = { showMonthMenu = false },
+                            modifier = Modifier.heightIn(max = 400.dp)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Select Date Range...", color = SketchPrimary, fontWeight = FontWeight.Bold) },
+                                onClick = {
+                                    showMonthMenu = false
+                                    showRangeDialog = true
+                                },
+                                leadingIcon = { Icon(Icons.Default.Today, contentDescription = null, tint = SketchPrimary) }
+                            )
+                            HorizontalDivider()
+                            // Show range: 12 months back to 24 months forward
+                            for (i in -12..24) {
+                                val cal = Calendar.getInstance().apply { add(Calendar.MONTH, i) }
+                                val m = cal.get(Calendar.MONTH)
+                                val y = cal.get(Calendar.YEAR)
+                                val label = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        viewModel.setDateFilter(m, y)
+                                        showMonthMenu = false
+                                    },
+                                    leadingIcon = {
+                                        if (!isRangeFilter && selectedMonth == m && selectedYear == y) {
+                                            Icon(Icons.Default.Check, contentDescription = null)
+                                        }
+                                    }
+                                )
+                            }
+                        }
                     }
                     Row {
                         IconButton(onClick = {
@@ -160,7 +224,7 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                             today.get(Calendar.YEAR)
                         )
                     }) {
-                        Icon(Icons.Default.Today, contentDescription = "One-Time", tint = SketchPrimary)
+//                        Icon(Icons.Default.Today, contentDescription = "Current Month", tint = SketchPrimary)
                     }
                 }
             }
@@ -354,6 +418,130 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                 onDismiss = { showManageCategoriesGlobal = false },
                 onDelete = { viewModel.deleteCategory(it) }
             )
+        }
+
+        if (showRangeDialog) {
+            DateRangePickerDialog(
+                onDismiss = { showRangeDialog = false },
+                onRangeSelected = { startM, startY, endM, endY ->
+                    viewModel.setDateRangeFilter(startM, startY, endM, endY)
+                    showRangeDialog = false
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun DateRangePickerDialog(
+    onDismiss: () -> Unit,
+    onRangeSelected: (Int, Int, Int, Int) -> Unit
+) {
+    var startMonth by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.MONTH)) }
+    var startYear by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
+    var endMonth by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.MONTH)) }
+    var endYear by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Select Date Range") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("Start Month", fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MonthSpinner(
+                        selectedMonth = startMonth,
+                        onMonthSelected = { startMonth = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                    YearSpinner(
+                        selectedYear = startYear,
+                        onYearSelected = { startYear = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                
+                Text("End Month", fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MonthSpinner(
+                        selectedMonth = endMonth,
+                        onMonthSelected = { endMonth = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                    YearSpinner(
+                        selectedYear = endYear,
+                        onYearSelected = { endYear = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            val startVal = startYear * 12 + startMonth
+            val endVal = endYear * 12 + endMonth
+            val isValid = endVal >= startVal
+            
+            Button(
+                onClick = { onRangeSelected(startMonth, startYear, endMonth, endYear) },
+                enabled = isValid
+            ) {
+                Text("Apply")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun MonthSpinner(selectedMonth: Int, onMonthSelected: (Int) -> Unit, modifier: Modifier = Modifier) {
+    var expanded by remember { mutableStateOf(false) }
+    val months = (0..11).map { m ->
+        val cal = Calendar.getInstance().apply { set(Calendar.MONTH, m) }
+        SimpleDateFormat("MMMM", Locale.getDefault()).format(cal.time)
+    }
+
+    Box(modifier = modifier) {
+        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+            Text(months[selectedMonth])
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            months.forEachIndexed { index, month ->
+                DropdownMenuItem(
+                    text = { Text(month) },
+                    onClick = {
+                        onMonthSelected(index)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun YearSpinner(selectedYear: Int, onYearSelected: (Int) -> Unit, modifier: Modifier = Modifier) {
+    var expanded by remember { mutableStateOf(false) }
+    val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+    val years = (currentYear - 2..currentYear + 5).toList()
+
+    Box(modifier = modifier) {
+        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+            Text(selectedYear.toString())
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            years.forEach { year ->
+                DropdownMenuItem(
+                    text = { Text(year.toString()) },
+                    onClick = {
+                        onYearSelected(year)
+                        expanded = false
+                    }
+                )
+            }
         }
     }
 }

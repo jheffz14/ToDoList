@@ -51,6 +51,15 @@ class TaskViewModel(
     private val _selectedYear = MutableStateFlow(Calendar.getInstance().get(Calendar.YEAR))
     val selectedYear: StateFlow<Int> = _selectedYear
 
+    private val _isRangeFilter = MutableStateFlow(false)
+    val isRangeFilter: StateFlow<Boolean> = _isRangeFilter
+
+    private val _endMonth = MutableStateFlow(Calendar.getInstance().get(Calendar.MONTH))
+    val endMonth: StateFlow<Int> = _endMonth
+
+    private val _endYear = MutableStateFlow(Calendar.getInstance().get(Calendar.YEAR))
+    val endYear: StateFlow<Int> = _endYear
+
     private val _selectedStatus = MutableStateFlow<TaskStatus?>(null)
     val selectedStatus: StateFlow<TaskStatus?> = _selectedStatus
 
@@ -67,7 +76,10 @@ class TaskViewModel(
         _selectedStatus,
         _selectedRecurrence,
         _selectedMonth,
-        _selectedYear
+        _selectedYear,
+        _isRangeFilter,
+        _endMonth,
+        _endYear
     ) { params: Array<Any?> ->
         @Suppress("UNCHECKED_CAST")
         val tasks = params[0] as List<Task>
@@ -77,6 +89,9 @@ class TaskViewModel(
         val recurrence = params[4] as RecurrenceType?
         val month = params[5] as Int
         val year = params[6] as Int
+        val isRange = params[7] as Boolean
+        val endM = params[8] as Int
+        val endY = params[9] as Int
 
         val calendar = Calendar.getInstance()
         tasks.filter { task ->
@@ -96,7 +111,15 @@ class TaskViewModel(
             calendar.timeInMillis = task.createdAt
             val taskMonth = calendar.get(Calendar.MONTH)
             val taskYear = calendar.get(Calendar.YEAR)
-            if (taskMonth != month || taskYear != year) return@filter false
+            
+            if (isRange) {
+                val taskVal = taskYear * 12 + taskMonth
+                val startVal = year * 12 + month
+                val endVal = endY * 12 + endM
+                if (taskVal !in startVal..endVal) return@filter false
+            } else {
+                if (taskMonth != month || taskYear != year) return@filter false
+            }
 
             true
         }.sortedWith(
@@ -162,12 +185,23 @@ class TaskViewModel(
         repository.allTasks,
         _selectedCategory,
         _selectedMonth,
-        _selectedYear
-    ) { tasks, category, month, year ->
+        _selectedYear,
+        _isRangeFilter,
+        _endMonth,
+        _endYear
+    ) { params: Array<Any?> ->
+        val tasks = params[0] as List<Task>
+        val category = params[1] as String?
+        val month = params[2] as Int
+        val year = params[3] as Int
+        val isRange = params[4] as Boolean
+        val eMonth = params[5] as Int
+        val eYear = params[6] as Int
+
         val activeTasks = tasks.filter { 
             !it.isArchived && (category == null || it.category == category) 
         }
-        calculateStats(tasks, activeTasks, month, year)
+        calculateStats(tasks, activeTasks, month, year, isRange, eMonth, eYear)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -177,21 +211,46 @@ class TaskViewModel(
     fun setDateFilter(month: Int, year: Int) {
         _selectedMonth.value = month
         _selectedYear.value = year
+        _isRangeFilter.value = false
     }
 
-    private fun calculateStats(allTasks: List<Task>, filteredTasks: List<Task>, filterMonth: Int, filterYear: Int): TaskStats {
+    fun setDateRangeFilter(startMonth: Int, startYear: Int, endMonth: Int, endYear: Int) {
+        _selectedMonth.value = startMonth
+        _selectedYear.value = startYear
+        _endMonth.value = endMonth
+        _endYear.value = endYear
+        _isRangeFilter.value = true
+    }
+
+    private fun calculateStats(
+        allTasks: List<Task>, 
+        filteredTasks: List<Task>, 
+        filterMonth: Int, 
+        filterYear: Int,
+        isRange: Boolean = false,
+        endMonth: Int = 0,
+        endYear: Int = 0
+    ): TaskStats {
         val calendar = Calendar.getInstance()
         
-        val tasksInMonth = filteredTasks.filter { task ->
+        val tasksInRange = filteredTasks.filter { task ->
             calendar.timeInMillis = task.targetDate ?: task.createdAt
             val taskMonth = calendar.get(Calendar.MONTH)
             val taskYear = calendar.get(Calendar.YEAR)
-            taskMonth == filterMonth && taskYear == filterYear
+            
+            if (isRange) {
+                val taskVal = taskYear * 12 + taskMonth
+                val startVal = filterYear * 12 + filterMonth
+                val endVal = endYear * 12 + endMonth
+                taskVal in startVal..endVal
+            } else {
+                taskMonth == filterMonth && taskYear == filterYear
+            }
         }
 
-        val completed = tasksInMonth.count { it.status == TaskStatus.COMPLETED }
-        val pending = tasksInMonth.count { it.status == TaskStatus.PENDING }
-        val total = tasksInMonth.size
+        val completed = tasksInRange.count { it.status == TaskStatus.COMPLETED }
+        val pending = tasksInRange.count { it.status == TaskStatus.PENDING }
+        val total = tasksInRange.size
         val completionRate = if (total > 0) completed.toFloat() / total else 0f
         
         val today = Calendar.getInstance().apply {
@@ -201,17 +260,17 @@ class TaskViewModel(
             set(Calendar.MILLISECOND, 0)
         }
         
-        val completedToday = tasksInMonth.count { 
+        val completedToday = tasksInRange.count { 
             it.status == TaskStatus.COMPLETED && it.createdAt >= today.timeInMillis 
         }
 
         // Updated Category Stats (Pending count per category)
-        val categoryDistribution = tasksInMonth.filter { it.status == TaskStatus.PENDING }
+        val categoryDistribution = tasksInRange.filter { it.status == TaskStatus.PENDING }
             .groupBy { it.category }
             .mapValues { it.value.size }
 
         // Recurrence Stats
-        val recurrenceStats = tasksInMonth.filter { it.status == TaskStatus.PENDING && it.recurrenceType != RecurrenceType.NONE }
+        val recurrenceStats = tasksInRange.filter { it.status == TaskStatus.PENDING && it.recurrenceType != RecurrenceType.NONE }
             .groupBy { it.recurrenceType }
             .mapValues { it.value.size }
 
