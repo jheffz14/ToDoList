@@ -66,6 +66,9 @@ class TaskViewModel(
     private val _selectedRecurrence = MutableStateFlow<RecurrenceType?>(null)
     val selectedRecurrence: StateFlow<RecurrenceType?> = _selectedRecurrence
 
+    private val _categoryTimeFilter = MutableStateFlow("All")
+    val categoryTimeFilter: StateFlow<String> = _categoryTimeFilter
+
     val isDarkMode: StateFlow<Boolean> = themeRepository.isDarkMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
@@ -188,7 +191,8 @@ class TaskViewModel(
         _selectedYear,
         _isRangeFilter,
         _endMonth,
-        _endYear
+        _endYear,
+        _categoryTimeFilter
     ) { params: Array<Any?> ->
         val tasks = params[0] as List<Task>
         val category = params[1] as String?
@@ -197,11 +201,12 @@ class TaskViewModel(
         val isRange = params[4] as Boolean
         val eMonth = params[5] as Int
         val eYear = params[6] as Int
+        val cTimeFilter = params[7] as String
 
         val activeTasks = tasks.filter { 
             !it.isArchived && (category == null || it.category == category) 
         }
-        calculateStats(tasks, activeTasks, month, year, isRange, eMonth, eYear)
+        calculateStats(tasks, activeTasks, month, year, isRange, eMonth, eYear, cTimeFilter)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -229,7 +234,8 @@ class TaskViewModel(
         filterYear: Int,
         isRange: Boolean = false,
         endMonth: Int = 0,
-        endYear: Int = 0
+        endYear: Int = 0,
+        categoryTimeFilter: String = "All"
     ): TaskStats {
         val calendar = Calendar.getInstance()
         
@@ -264,8 +270,22 @@ class TaskViewModel(
             it.status == TaskStatus.COMPLETED && it.createdAt >= today.timeInMillis 
         }
 
+        // Apply Category Time Filter for Donut Chart
+        val donutTasks = if (categoryTimeFilter == "All") {
+            tasksInRange
+        } else {
+            val limit = Calendar.getInstance()
+            if (categoryTimeFilter == "In 7 days") limit.add(Calendar.DAY_OF_YEAR, 7)
+            else if (categoryTimeFilter == "In 30 days") limit.add(Calendar.DAY_OF_YEAR, 30)
+            
+            tasksInRange.filter { task ->
+                val taskDate = task.targetDate ?: task.createdAt
+                taskDate <= limit.timeInMillis
+            }
+        }
+
         // Updated Category Stats (Pending count per category)
-        val categoryDistribution = tasksInRange.filter { it.status == TaskStatus.PENDING }
+        val categoryDistribution = donutTasks.filter { it.status == TaskStatus.PENDING }
             .groupBy { it.category }
             .mapValues { it.value.size }
 
@@ -274,23 +294,40 @@ class TaskViewModel(
             .groupBy { it.recurrenceType }
             .mapValues { it.value.size }
 
-        val dateFormat = SimpleDateFormat("EEE", Locale.getDefault())
-        val dailyCompletion = (0..6).reversed().map { daysAgo ->
-            val date = Calendar.getInstance().apply {
-                add(Calendar.DAY_OF_YEAR, -daysAgo)
-                set(Calendar.HOUR_OF_DAY, 0)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
-            }
-            val nextDate = (date.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
+        // Dynamic Chart Data (Bar Chart)
+        val periodicCompletion = if (isRange) {
+            val startVal = filterYear * 12 + filterMonth
+            val endVal = endYear * 12 + endMonth
+            val monthCount = endVal - startVal + 1
             
-            val count = allTasks.count { 
-                it.status == TaskStatus.COMPLETED && 
-                it.createdAt >= date.timeInMillis && 
-                it.createdAt < nextDate.timeInMillis 
+            if (monthCount <= 1) {
+                generatePeriodicCompletion(filteredTasks, filterMonth, filterYear, "daily")
+            } else if (monthCount <= 12) {
+                // Monthly bars
+                val monthFormat = SimpleDateFormat("MMM", Locale.getDefault())
+                (0 until monthCount).map { i ->
+                    val currentVal = startVal + i
+                    val m = currentVal % 12
+                    val y = currentVal / 12
+                    val cal = Calendar.getInstance().apply { set(Calendar.MONTH, m); set(Calendar.YEAR, y) }
+                    val count = filteredTasks.count { t ->
+                        calendar.timeInMillis = t.createdAt
+                        t.status == TaskStatus.COMPLETED && calendar.get(Calendar.MONTH) == m && calendar.get(Calendar.YEAR) == y
+                    }
+                    monthFormat.format(cal.time) to count
+                }
+            } else {
+                // Yearly bars
+                (filterYear..endYear).map { y ->
+                    val count = filteredTasks.count { t ->
+                        calendar.timeInMillis = t.createdAt
+                        t.status == TaskStatus.COMPLETED && calendar.get(Calendar.YEAR) == y
+                    }
+                    y.toString() to count
+                }
             }
-            dateFormat.format(date.time) to count
+        } else {
+            generatePeriodicCompletion(filteredTasks, filterMonth, filterYear, "daily")
         }
 
         return TaskStats(
@@ -301,9 +338,43 @@ class TaskViewModel(
             completionRate = completionRate,
             completedToday = completedToday,
             categoryDistribution = categoryDistribution,
-            dailyCompletion = dailyCompletion,
+            dailyCompletion = periodicCompletion,
             recurrenceDistribution = recurrenceStats
         )
+    }
+
+    private fun generatePeriodicCompletion(tasks: List<Task>, month: Int, year: Int, type: String): List<Pair<String, Int>> {
+        val dateFormat = SimpleDateFormat("EEE", Locale.getDefault())
+        val now = Calendar.getInstance()
+        
+        // If viewing current month, use today as base. Otherwise, use end of that month.
+        val baseDate = if (now.get(Calendar.MONTH) == month && now.get(Calendar.YEAR) == year) {
+            now
+        } else {
+            Calendar.getInstance().apply {
+                set(Calendar.YEAR, year)
+                set(Calendar.MONTH, month)
+                set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH))
+            }
+        }
+
+        return (0..6).reversed().map { daysAgo ->
+            val date = (baseDate.clone() as Calendar).apply {
+                add(Calendar.DAY_OF_YEAR, -daysAgo)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val nextDate = (date.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
+            
+            val count = tasks.count { 
+                it.status == TaskStatus.COMPLETED && 
+                it.createdAt >= date.timeInMillis && 
+                it.createdAt < nextDate.timeInMillis 
+            }
+            dateFormat.format(date.time) to count
+        }
     }
 
     fun updateTaskStatus(task: Task, newStatus: TaskStatus) {
@@ -550,6 +621,10 @@ class TaskViewModel(
 
     fun setRecurrenceFilter(recurrence: RecurrenceType?) {
         _selectedRecurrence.value = recurrence
+    }
+
+    fun setCategoryTimeFilter(filter: String) {
+        _categoryTimeFilter.value = filter
     }
 }
 

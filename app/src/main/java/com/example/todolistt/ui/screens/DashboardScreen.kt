@@ -52,8 +52,8 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
     val isRangeFilter by viewModel.isRangeFilter.collectAsState()
     val endMonth by viewModel.endMonth.collectAsState()
     val endYear by viewModel.endYear.collectAsState()
+    val categoryTimeFilter by viewModel.categoryTimeFilter.collectAsState()
     
-    var timeFilter by remember { mutableStateOf("All") }
     var showTimeFilterMenu by remember { mutableStateOf(false) }
     var showManageCategoriesGlobal by remember { mutableStateOf(false) }
     var showMonthMenu by remember { mutableStateOf(false) }
@@ -121,18 +121,19 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
             modifier = Modifier
                 .padding(padding)
                 .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .verticalScroll(rememberScrollState())
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "DASHBOARD",
+                modifier = Modifier.padding(top = 4.dp),
                 style = MaterialTheme.typography.headlineLarge.copy(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 2.sp,
                     color = MaterialTheme.colorScheme.onBackground
                 )
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Month/Year Filter UI
             Card(
@@ -217,17 +218,10 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                             Icon(Icons.Default.ChevronRight, contentDescription = "Next", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
-//                    IconButton(onClick = {
-//                        val today = Calendar.getInstance()
-//                        viewModel.setDateFilter(
-//                            today.get(Calendar.MONTH),
-//                            today.get(Calendar.YEAR)
-//                        )
-//                    }) {
-////                        Icon(Icons.Default.Today, contentDescription = "Current Month", tint = SketchPrimary)
-//                    }
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Top Stat Cards
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -242,6 +236,8 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                     modifier = Modifier.weight(1f)
                 )
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Category Details
             Card(
@@ -269,6 +265,8 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Recurrence Details
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -294,6 +292,8 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Completion Rate
             Card(
@@ -324,6 +324,8 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Category Donut Chart Section (Simplified)
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -340,7 +342,7 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                         Text("Open Tasks in Categories", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                         Box {
                             TextButton(onClick = { showTimeFilterMenu = true }) {
-                                Text(timeFilter, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(categoryTimeFilter, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             DropdownMenu(expanded = showTimeFilterMenu, onDismissRequest = { showTimeFilterMenu = false }) {
@@ -348,7 +350,7 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                                     DropdownMenuItem(
                                         text = { Text(filter) },
                                         onClick = {
-                                            timeFilter = filter
+                                            viewModel.setCategoryTimeFilter(filter)
                                             showTimeFilterMenu = false
                                         }
                                     )
@@ -383,6 +385,8 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Daily Task Bar Chart Section
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -396,8 +400,8 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Daily task complete", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                        Text("All", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                        Text("Task completion", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text(if (isRangeFilter) "Custom Range" else "Last 7 days", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     }
                     
                     Spacer(modifier = Modifier.height(24.dp))
