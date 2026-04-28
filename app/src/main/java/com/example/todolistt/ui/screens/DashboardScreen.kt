@@ -217,15 +217,15 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
                             Icon(Icons.Default.ChevronRight, contentDescription = "Next", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
-                    IconButton(onClick = {
-                        val today = Calendar.getInstance()
-                        viewModel.setDateFilter(
-                            today.get(Calendar.MONTH),
-                            today.get(Calendar.YEAR)
-                        )
-                    }) {
-//                        Icon(Icons.Default.Today, contentDescription = "Current Month", tint = SketchPrimary)
-                    }
+//                    IconButton(onClick = {
+//                        val today = Calendar.getInstance()
+//                        viewModel.setDateFilter(
+//                            today.get(Calendar.MONTH),
+//                            today.get(Calendar.YEAR)
+//                        )
+//                    }) {
+////                        Icon(Icons.Default.Today, contentDescription = "Current Month", tint = SketchPrimary)
+//                    }
                 }
             }
 
