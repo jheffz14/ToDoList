@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import com.example.todolistt.ui.screens.DashboardScreen
 import com.example.todolistt.ui.screens.ArchiveScreen
+import com.example.todolistt.ui.screens.HistoryScreen
 import com.example.todolistt.ui.screens.TaskScreen
 import com.example.todolistt.ui.theme.ToDoListtTheme
 import com.example.todolistt.ui.viewmodel.TaskViewModel
@@ -91,6 +92,8 @@ class MainActivity : ComponentActivity() {
                         "tasks" -> {
                             TaskScreen(
                                 viewModel = viewModel,
+                                onNavigateToTasks = { currentScreen = "tasks" },
+                                onNavigateToHistory = { currentScreen = "history" },
                                 onNavigateToDashboard = { currentScreen = "dashboard" },
                                 onNavigateToArchive = { currentScreen = "archive" },
                                 initialTaskId = taskIdToOpen
@@ -102,9 +105,18 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+                        "history" -> {
+                            HistoryScreen(
+                                viewModel = viewModel,
+                                onNavigateToTasks = { currentScreen = "tasks" },
+                                onNavigateToDashboard = { currentScreen = "dashboard" }
+                            )
+                        }
                         "dashboard" -> {
                             DashboardScreen(
                                 viewModel = viewModel,
+                                onNavigateToTasks = { currentScreen = "tasks" },
+                                onNavigateToHistory = { currentScreen = "history" },
                                 onBack = { currentScreen = "tasks" }
                             )
                         }

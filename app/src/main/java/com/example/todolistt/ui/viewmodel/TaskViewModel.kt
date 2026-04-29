@@ -98,7 +98,7 @@ class TaskViewModel(
 
         val calendar = Calendar.getInstance()
         tasks.filter { task ->
-            if (task.isArchived) return@filter false
+            if (task.isArchived || task.status == TaskStatus.COMPLETED) return@filter false
             
             val matchesQuery = query.isEmpty() || 
                               task.title.contains(query, ignoreCase = true) || 
@@ -126,10 +126,34 @@ class TaskViewModel(
 
             true
         }.sortedWith(
-            compareBy<Task> { it.status == TaskStatus.COMPLETED }
-            .thenByDescending { it.priority }
+            compareByDescending<Task> { it.priority }
             .thenByDescending { it.createdAt }
         )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    val historyTasks: StateFlow<List<Task>> = combine(
+        repository.allTasks,
+        _searchQuery,
+        _selectedMonth,
+        _selectedYear
+    ) { tasks, query, month, year ->
+        val calendar = Calendar.getInstance()
+        tasks.filter { task ->
+            if (!task.isArchived && task.status == TaskStatus.COMPLETED) {
+                val matchesQuery = query.isEmpty() || task.title.contains(query, ignoreCase = true)
+                if (!matchesQuery) return@filter false
+
+                calendar.timeInMillis = task.createdAt
+                val taskMonth = calendar.get(Calendar.MONTH)
+                val taskYear = calendar.get(Calendar.YEAR)
+                
+                taskMonth == month && taskYear == year
+            } else false
+        }.sortedByDescending { it.createdAt }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -625,6 +649,14 @@ class TaskViewModel(
 
     fun setCategoryTimeFilter(filter: String) {
         _categoryTimeFilter.value = filter
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch {
+            val history = historyTasks.value
+            history.forEach { repository.delete(it) }
+            updateWidget()
+        }
     }
 }
 

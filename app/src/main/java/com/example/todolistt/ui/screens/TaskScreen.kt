@@ -19,8 +19,6 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -45,6 +43,8 @@ import java.util.*
 @Composable
 fun TaskScreen(
     viewModel: TaskViewModel,
+    onNavigateToTasks: () -> Unit,
+    onNavigateToHistory: () -> Unit,
     onNavigateToDashboard: () -> Unit,
     onNavigateToArchive: () -> Unit,
     initialTaskId: Int? = null
@@ -58,6 +58,7 @@ fun TaskScreen(
     val selectedStatus by viewModel.selectedStatus.collectAsState()
     val selectedRecurrence by viewModel.selectedRecurrence.collectAsState()
 
+    var showHistoryConfirmDialog by remember { mutableStateOf<Task?>(null) }
     var showDialog by remember { mutableStateOf(false) }
     var taskToEdit by remember { mutableStateOf<Task?>(null) }
     var showManageCategoriesGlobal by remember { mutableStateOf(false) }
@@ -359,8 +360,14 @@ fun TaskScreen(
                 )
                 NavigationBarItem(
                     selected = false,
+                    onClick = onNavigateToHistory,
+                    icon = { Icon(Icons.Outlined.History, contentDescription = "History") },
+                    label = { Text("History") }
+                )
+                NavigationBarItem(
+                    selected = false,
                     onClick = onNavigateToDashboard,
-                    icon = { Icon(Icons.Outlined.History, contentDescription = "Analytics") },
+                    icon = { Icon(Icons.Default.BarChart, contentDescription = "Analytics") },
                     label = { Text("Analytics") }
                 )
                 NavigationBarItem(
@@ -388,7 +395,13 @@ fun TaskScreen(
                     val isSelected = selectedTasks.contains(task.id)
                     SketchTaskItem(
                         task = task,
-                        onToggleStatus = { newStatus -> viewModel.updateTaskStatus(task, newStatus) },
+                        onToggleStatus = { newStatus -> 
+                            if (newStatus == TaskStatus.COMPLETED) {
+                                showHistoryConfirmDialog = task
+                            } else {
+                                viewModel.updateTaskStatus(task, newStatus)
+                            }
+                        },
                         onDelete = {
                             showClearConfirmDialog = "Are you sure you want to delete this task?" to {
                                 if (task.recurrenceType != RecurrenceType.NONE) {
@@ -417,6 +430,27 @@ fun TaskScreen(
                     )
                 }
             }
+        }
+
+        if (showHistoryConfirmDialog != null) {
+            AlertDialog(
+                onDismissRequest = { showHistoryConfirmDialog = null },
+                title = { Text("Task Completed") },
+                text = { Text("Is this task done? It will be moved to History.") },
+                confirmButton = {
+                    Button(onClick = {
+                        viewModel.updateTaskStatus(showHistoryConfirmDialog!!, TaskStatus.COMPLETED)
+                        showHistoryConfirmDialog = null
+                    }, colors = ButtonDefaults.buttonColors(containerColor = SketchPrimary)) {
+                        Text("YES")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showHistoryConfirmDialog = null }) {
+                        Text("CANCEL")
+                    }
+                }
+            )
         }
 
         if (showClearConfirmDialog != null) {

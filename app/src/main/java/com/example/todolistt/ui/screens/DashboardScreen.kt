@@ -10,9 +10,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -43,7 +43,12 @@ import kotlin.math.min
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
+fun DashboardScreen(
+    viewModel: TaskViewModel,
+    onNavigateToTasks: () -> Unit,
+    onNavigateToHistory: () -> Unit,
+    onBack: () -> Unit
+) {
     val stats by viewModel.stats.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
     val categories by viewModel.categories.collectAsState()
@@ -92,14 +97,20 @@ fun DashboardScreen(viewModel: TaskViewModel, onBack: () -> Unit) {
             ) {
                 NavigationBarItem(
                     selected = false,
-                    onClick = onBack,
-                    icon = { Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Tasks") },
+                    onClick = onNavigateToTasks,
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Tasks") },
                     label = { Text("Tasks") }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onNavigateToHistory,
+                    icon = { Icon(Icons.Outlined.History, contentDescription = "History") },
+                    label = { Text("History") }
                 )
                 NavigationBarItem(
                     selected = true,
                     onClick = { /* Stay here */ },
-                    icon = { Icon(Icons.Outlined.History, contentDescription = "Analytics") },
+                    icon = { Icon(Icons.Default.BarChart, contentDescription = "Analytics") },
                     label = { Text("Analytics") }
                 )
                 NavigationBarItem(
