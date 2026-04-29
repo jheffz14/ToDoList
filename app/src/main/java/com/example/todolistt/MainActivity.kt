@@ -163,7 +163,7 @@ class MainActivity : ComponentActivity() {
 
         // 4. Category Parsing
         var category: String? = null
-        val categoryWords = listOf("Personal", "Work", "Meeting", "Others")
+        val categoryWords = listOf("Personal", "Work", "Meeting", "Others", "Exercise", "Health", "Fitness", "Shopping", "Finance", "Education", "Travel", "Hobbies")
         for (word in categoryWords) {
             if (text.contains(word, ignoreCase = true)) {
                 category = word
@@ -184,16 +184,24 @@ class MainActivity : ComponentActivity() {
             return (hour * 3600000L) + (m * 60000L)
         }
 
+        // Expanded regex to catch "at 5 AM to 7 AM" or "at 5 to 7 PM"
         val timeRangeRegex = "(?i)at (\\d{1,2})(:(\\d{2}))?\\s*(AM|PM)?\\s*(?:to|until|-)\\s*(\\d{1,2})(:(\\d{2}))?\\s*(AM|PM)?".toRegex()
-        val rangeMatch = timeRangeRegex.find(text)
+        val rangeMatch = timeRangeRegex.find(cleanText) // Use cleanText
         
         if (rangeMatch != null) {
-            startTime = parseSingleTime(rangeMatch.groupValues[1].toInt(), if (rangeMatch.groupValues[3].isNotEmpty()) rangeMatch.groupValues[3].toInt() else 0, rangeMatch.groupValues[4])
-            endTime = parseSingleTime(rangeMatch.groupValues[5].toInt(), if (rangeMatch.groupValues[7].isNotEmpty()) rangeMatch.groupValues[7].toInt() else 0, rangeMatch.groupValues[8])
+            // Handle AM/PM logic for start time if not explicitly provided
+            var startAmPm = rangeMatch.groupValues[4]
+            val endAmPm = rangeMatch.groupValues[8]
+            if (startAmPm.isEmpty() && endAmPm.isNotEmpty()) {
+                startAmPm = endAmPm
+            }
+
+            startTime = parseSingleTime(rangeMatch.groupValues[1].toInt(), if (rangeMatch.groupValues[3].isNotEmpty()) rangeMatch.groupValues[3].toInt() else 0, startAmPm)
+            endTime = parseSingleTime(rangeMatch.groupValues[5].toInt(), if (rangeMatch.groupValues[7].isNotEmpty()) rangeMatch.groupValues[7].toInt() else 0, endAmPm.ifEmpty { startAmPm })
             cleanText = cleanText.replace(rangeMatch.value, "", ignoreCase = true)
         } else {
             val singleTimeRegex = "(?i)at (\\d{1,2})(:(\\d{2}))?\\s*(AM|PM)?".toRegex()
-            val singleMatch = singleTimeRegex.find(text)
+            val singleMatch = singleTimeRegex.find(cleanText) // Use cleanText
             if (singleMatch != null) {
                 startTime = parseSingleTime(singleMatch.groupValues[1].toInt(), if (singleMatch.groupValues[3].isNotEmpty()) singleMatch.groupValues[3].toInt() else 0, singleMatch.groupValues[4])
                 cleanText = cleanText.replace(singleMatch.value, "", ignoreCase = true)

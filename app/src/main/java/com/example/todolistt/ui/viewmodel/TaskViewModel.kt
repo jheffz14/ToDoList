@@ -142,6 +142,12 @@ class TaskViewModel(
         initialValue = emptyList()
     )
 
+    val allTasks: StateFlow<List<Task>> = repository.allTasks.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
     val historyTasks: StateFlow<List<Task>> = combine(
         repository.allTasks,
         _searchQuery,

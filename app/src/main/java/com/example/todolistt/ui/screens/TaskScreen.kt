@@ -176,6 +176,17 @@ fun TaskScreen(
                                 Icon(Icons.Default.Archive, contentDescription = "View Archive", modifier = Modifier.size(22.dp))
                             }
                             var showExportMenu by remember { mutableStateOf(false) }
+                            val csvPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                                contract = androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/csv")
+                            ) { uri ->
+                                uri?.let { ExportUtility.exportTasksToCsv(context, tasks, it) }
+                            }
+                            val pdfPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                                contract = androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/pdf")
+                            ) { uri ->
+                                uri?.let { ExportUtility.exportTasksToPdf(context, tasks, it) }
+                            }
+
                             Box {
                                 IconButton(onClick = { showExportMenu = true }, modifier = Modifier.size(40.dp)) {
                                     Icon(Icons.Default.Share, contentDescription = "Export", modifier = Modifier.size(22.dp))
@@ -188,7 +199,7 @@ fun TaskScreen(
                                     DropdownMenuItem(
                                         text = { Text("Export as PDF") },
                                         onClick = {
-                                            ExportUtility.exportTasksToPdf(context, tasks)
+                                            pdfPickerLauncher.launch("tasks_report_${System.currentTimeMillis()}.pdf")
                                             showExportMenu = false
                                         },
                                         leadingIcon = { Icon(Icons.Default.PictureAsPdf, contentDescription = null) }
@@ -196,7 +207,7 @@ fun TaskScreen(
                                     DropdownMenuItem(
                                         text = { Text("Export as CSV") },
                                         onClick = {
-                                            ExportUtility.exportTasksToCsv(context, tasks)
+                                            csvPickerLauncher.launch("tasks_report_${System.currentTimeMillis()}.csv")
                                             showExportMenu = false
                                         },
                                         leadingIcon = { Icon(Icons.Default.TableChart, contentDescription = null) }
@@ -1024,11 +1035,6 @@ fun TaskDialog(
     var showTimePickerForStart by remember { mutableStateOf(false) }
     var showTimePickerForEnd by remember { mutableStateOf(false) }
 
-    val filteredCategories = remember(categorySearchQuery, availableCategories) {
-        if (categorySearchQuery.isBlank()) availableCategories
-        else availableCategories.filter { it.contains(categorySearchQuery, ignoreCase = true) }
-    }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -1124,7 +1130,7 @@ fun TaskDialog(
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    val isCategoryValid = if (isAddingCustomCategory) customCategory.isNotBlank() else availableCategories.contains(category)
+                    val isCategoryValid = if (isAddingCustomCategory) customCategory.isNotBlank() else true
                     Text(
                         "Category *",
                         style = MaterialTheme.typography.titleSmall,
@@ -1173,7 +1179,17 @@ fun TaskDialog(
                                     onDismissRequest = { expanded = false },
                                     modifier = Modifier.widthIn(min = 150.dp, max = 280.dp).heightIn(max = 400.dp)
                                 ) {
-                                    filteredCategories.forEach { cat ->
+                                    // Always include the current category if it's not in the available list (e.g., from voice)
+                                    val finalDisplayCategories = if (category.isNotBlank() && !availableCategories.contains(category)) {
+                                        listOf(category) + availableCategories
+                                    } else {
+                                        availableCategories
+                                    }.let { cats ->
+                                        if (categorySearchQuery.isBlank()) cats
+                                        else cats.filter { it.contains(categorySearchQuery, ignoreCase = true) }
+                                    }
+
+                                    finalDisplayCategories.forEach { cat ->
                                         DropdownMenuItem(
                                             text = { Text(cat) },
                                             onClick = {
@@ -1318,7 +1334,7 @@ fun TaskDialog(
             }
         },
         confirmButton = {
-            val isCategoryValid = if (isAddingCustomCategory) customCategory.isNotBlank() else availableCategories.contains(category)
+            val isCategoryValid = if (isAddingCustomCategory) customCategory.isNotBlank() else true
             var canSave = title.isNotBlank() && targetDate != null && startTime != null && endTime != null && isCategoryValid
             val currentTargetDate = targetDate
     val currentTargetEndDate = targetEndDate

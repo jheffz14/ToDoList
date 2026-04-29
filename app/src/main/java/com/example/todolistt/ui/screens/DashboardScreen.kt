@@ -162,6 +162,18 @@ fun DashboardScreen(
                     IconButton(onClick = { showExportMenu = true }) {
                         Icon(Icons.Default.Share, contentDescription = "Export Analytics", tint = SketchPrimary)
                     }
+
+                    val csvPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                        contract = androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/csv")
+                    ) { uri ->
+                        uri?.let { ExportUtility.exportTasksToCsv(context, viewModel.allTasks.value, it) }
+                    }
+                    val pdfPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                        contract = androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/pdf")
+                    ) { uri ->
+                        uri?.let { ExportUtility.exportTasksToPdf(context, viewModel.allTasks.value, it) }
+                    }
+
                     DropdownMenu(
                         expanded = showExportMenu,
                         onDismissRequest = { showExportMenu = false },
@@ -170,18 +182,14 @@ fun DashboardScreen(
                         DropdownMenuItem(
                             text = { Text("Export Analytics (CSV)") },
                             onClick = {
-                                viewModel.tasks.value.let { tasks ->
-                                    ExportUtility.exportTasksToCsv(context, tasks)
-                                }
+                                csvPickerLauncher.launch("analytics_report_${System.currentTimeMillis()}.csv")
                                 showExportMenu = false
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("Export Analytics (PDF)") },
                             onClick = {
-                                viewModel.tasks.value.let { tasks ->
-                                    ExportUtility.exportTasksToPdf(context, tasks)
-                                }
+                                pdfPickerLauncher.launch("analytics_report_${System.currentTimeMillis()}.pdf")
                                 showExportMenu = false
                             }
                         )

@@ -88,6 +88,17 @@ fun HistoryScreen(
                         )
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        val csvPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                            contract = androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/csv")
+                        ) { uri ->
+                            uri?.let { ExportUtility.exportTasksToCsv(context, historyTasks, it) }
+                        }
+                        val pdfPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                            contract = androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/pdf")
+                        ) { uri ->
+                            uri?.let { ExportUtility.exportTasksToPdf(context, historyTasks, it) }
+                        }
+
                         Box {
                             IconButton(onClick = { showExportMenu = true }) {
                                 Icon(Icons.Default.Share, contentDescription = "Export History", tint = SketchPrimary)
@@ -100,14 +111,14 @@ fun HistoryScreen(
                                 DropdownMenuItem(
                                     text = { Text("Export as CSV") },
                                     onClick = {
-                                        ExportUtility.exportTasksToCsv(context, historyTasks)
+                                        csvPickerLauncher.launch("history_report_${System.currentTimeMillis()}.csv")
                                         showExportMenu = false
                                     }
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Export as PDF") },
                                     onClick = {
-                                        ExportUtility.exportTasksToPdf(context, historyTasks)
+                                        pdfPickerLauncher.launch("history_report_${System.currentTimeMillis()}.pdf")
                                         showExportMenu = false
                                     }
                                 )
