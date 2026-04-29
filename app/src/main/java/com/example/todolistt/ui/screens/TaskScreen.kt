@@ -54,6 +54,11 @@ fun TaskScreen(
     voiceTitle: String? = null,
     voicePriority: Priority? = null,
     voiceDate: Long? = null,
+    voiceEndDate: Long? = null,
+    voiceStartTime: Long? = null,
+    voiceEndTime: Long? = null,
+    voiceCategory: String? = null,
+    voiceRecurrence: RecurrenceType? = null,
     onVoiceComplete: () -> Unit = {},
     onStartVoiceInput: () -> Unit = {}
 ) {
@@ -77,7 +82,7 @@ fun TaskScreen(
     var showDeleteRecurrenceDialog by remember { mutableStateOf<Task?>(null) }
 
     // Update showDialog when voiceTitle is received
-    LaunchedEffect(voiceTitle) {
+    LaunchedEffect(voiceTitle, voicePriority, voiceDate, voiceEndDate, voiceStartTime, voiceEndTime, voiceCategory, voiceRecurrence) {
         if (!voiceTitle.isNullOrBlank()) {
             taskToEdit = null
             showDialog = true
@@ -132,69 +137,76 @@ fun TaskScreen(
                     } else {
                         Text(
                             text = "MY TASKS",
+                            modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.headlineLarge.copy(
                                 fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 2.sp
-                            )
+                                letterSpacing = 2.sp,
+                                fontSize = 24.sp // Slightly smaller to give room for icons
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        Row {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             var showHelpDialog by remember { mutableStateOf(false) }
-                        IconButton(onClick = { showHelpDialog = true }) {
-                            Icon(Icons.Default.HelpOutline, contentDescription = "Help")
-                        }
+                            IconButton(onClick = { showHelpDialog = true }, modifier = Modifier.size(40.dp)) {
+                                Icon(Icons.Default.HelpOutline, contentDescription = "Help", modifier = Modifier.size(22.dp))
+                            }
 
-                        if (showHelpDialog) {
-                            AlertDialog(
-                                onDismissRequest = { showHelpDialog = false },
-                                title = { Text("How to Use") },
-                                text = {
-                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text("• Tap + to add a task.", fontWeight = FontWeight.Bold)
-                                        Text("• Choose Recurrence (One-Time/Daily) to repeat tasks.")
-                                        Text("• Future daily recurring tasks are locked until they reach their target date.")
-                                        Text("• Swipe a task to the left to archive it.")
-                                        Text("• Use the filter chips for Status, Recurrence, or Category.")
-                                        Text("• Long-press a task to delete multiple items.")
-                                    }
-                                },
-                                confirmButton = { TextButton(onClick = { showHelpDialog = false }) { Text("Close") } }
-                            )
-                        }
-                        IconButton(onClick = onNavigateToArchive) {
-                            Icon(Icons.Default.Archive, contentDescription = "View Archive")
-                        }
-                        var showExportMenu by remember { mutableStateOf(false) }
-                        Box {
-                            IconButton(onClick = { showExportMenu = true }) {
-                                Icon(Icons.Default.Share, contentDescription = "Export")
-                            }
-                            DropdownMenu(
-                                expanded = showExportMenu,
-                                onDismissRequest = { showExportMenu = false },
-                                modifier = Modifier.widthIn(max = 250.dp)
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Export as PDF") },
-                                    onClick = {
-                                        ExportUtility.exportTasksToPdf(context, tasks)
-                                        showExportMenu = false
+                            if (showHelpDialog) {
+                                AlertDialog(
+                                    onDismissRequest = { showHelpDialog = false },
+                                    title = { Text("Voice Commands Guide") },
+                                    text = {
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text("Try saying:", fontWeight = FontWeight.Bold)
+                                            Text("• 'Jogging daily now to May 3 at 5 AM to 7 AM'", fontSize = 12.sp)
+                                            Text("• 'Meeting Work tomorrow at 9 AM to 10 AM'", fontSize = 12.sp)
+                                            Text("• 'Buy groceries high priority today'", fontSize = 12.sp)
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text("Keywords detected:", fontWeight = FontWeight.Bold)
+                                            Text("• Recurrence: 'daily', 'every day'", fontSize = 11.sp)
+                                            Text("• Range: 'to', 'until' (for time and dates)", fontSize = 11.sp)
+                                            Text("• Category: 'Work', 'Personal', 'Meeting'", fontSize = 11.sp)
+                                        }
                                     },
-                                    leadingIcon = { Icon(Icons.Default.PictureAsPdf, contentDescription = null) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Export as CSV") },
-                                    onClick = {
-                                        ExportUtility.exportTasksToCsv(context, tasks)
-                                        showExportMenu = false
-                                    },
-                                    leadingIcon = { Icon(Icons.Default.TableChart, contentDescription = null) }
+                                    confirmButton = { TextButton(onClick = { showHelpDialog = false }) { Text("Close") } }
                                 )
                             }
-                        }
-                        IconButton(onClick = {
+                            IconButton(onClick = onNavigateToArchive, modifier = Modifier.size(40.dp)) {
+                                Icon(Icons.Default.Archive, contentDescription = "View Archive", modifier = Modifier.size(22.dp))
+                            }
+                            var showExportMenu by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(onClick = { showExportMenu = true }, modifier = Modifier.size(40.dp)) {
+                                    Icon(Icons.Default.Share, contentDescription = "Export", modifier = Modifier.size(22.dp))
+                                }
+                                DropdownMenu(
+                                    expanded = showExportMenu,
+                                    onDismissRequest = { showExportMenu = false },
+                                    modifier = Modifier.widthIn(max = 250.dp)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Export as PDF") },
+                                        onClick = {
+                                            ExportUtility.exportTasksToPdf(context, tasks)
+                                            showExportMenu = false
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.PictureAsPdf, contentDescription = null) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Export as CSV") },
+                                        onClick = {
+                                            ExportUtility.exportTasksToCsv(context, tasks)
+                                            showExportMenu = false
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.TableChart, contentDescription = null) }
+                                    )
+                                }
+                            }
+                            IconButton(onClick = {
                                 showClearConfirmDialog = "Clear all tasks?" to { viewModel.deleteAllTasks() }
-                            }) {
-                                Icon(Icons.Default.DeleteSweep, contentDescription = "Clear Data")
+                            }, modifier = Modifier.size(40.dp)) {
+                                Icon(Icons.Default.DeleteSweep, contentDescription = "Clear Data", modifier = Modifier.size(22.dp), tint = Color.Red)
                             }
                         }
                     }
@@ -630,6 +642,11 @@ fun TaskScreen(
                 initialTitle = voiceTitle ?: "",
                 initialPriority = voicePriority,
                 initialDate = voiceDate,
+                initialEndDate = voiceEndDate,
+                initialStartTime = voiceStartTime,
+                initialEndTime = voiceEndTime,
+                initialCategory = voiceCategory,
+                initialRecurrence = voiceRecurrence,
                 onDismiss = { 
                     showDialog = false
                     onVoiceComplete()
@@ -963,6 +980,11 @@ fun TaskDialog(
     initialTitle: String = "",
     initialPriority: Priority? = null,
     initialDate: Long? = null,
+    initialEndDate: Long? = null,
+    initialStartTime: Long? = null,
+    initialEndTime: Long? = null,
+    initialCategory: String? = null,
+    initialRecurrence: RecurrenceType? = null,
     onDismiss: () -> Unit,
     onConfirm: (Task) -> Unit,
     onDeleteCategory: ((String) -> Unit)? = null,
@@ -970,7 +992,7 @@ fun TaskDialog(
 ) {
     var title by remember { mutableStateOf(if (initialTitle.isNotEmpty()) initialTitle else task?.title ?: "") }
     var description by remember { mutableStateOf(task?.description ?: "") }
-    var category by remember { mutableStateOf(task?.category ?: "Personal") }
+    var category by remember { mutableStateOf(initialCategory ?: task?.category ?: "Personal") }
     var customCategory by remember { mutableStateOf("") }
     var isAddingCustomCategory by remember { mutableStateOf(false) }
     var subcategory by remember { mutableStateOf(task?.subcategory ?: "") }
@@ -989,15 +1011,15 @@ fun TaskDialog(
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis)
     }
-    var targetEndDate by remember { mutableStateOf(task?.targetEndDate) }
-    var recurrenceType by remember { mutableStateOf(task?.recurrenceType ?: RecurrenceType.NONE) }
+    var targetEndDate by remember { mutableStateOf(initialEndDate ?: task?.targetEndDate) }
+    var recurrenceType by remember { mutableStateOf(initialRecurrence ?: task?.recurrenceType ?: RecurrenceType.NONE) }
 
     var startTime by remember {
-        mutableStateOf<Long?>(task?.startTime ?: Calendar.getInstance().let {
+        mutableStateOf<Long?>(initialStartTime ?: task?.startTime ?: Calendar.getInstance().let {
             (it.get(Calendar.HOUR_OF_DAY) * 3600000L) + (it.get(Calendar.MINUTE) * 60000L)
         })
     }
-    var endTime by remember { mutableStateOf(task?.endTime) }
+    var endTime by remember { mutableStateOf(initialEndTime ?: task?.endTime) }
 
     var showTimePickerForStart by remember { mutableStateOf(false) }
     var showTimePickerForEnd by remember { mutableStateOf(false) }

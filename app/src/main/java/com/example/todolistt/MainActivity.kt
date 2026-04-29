@@ -58,6 +58,11 @@ class MainActivity : ComponentActivity() {
     private var voiceTaskTitle = mutableStateOf<String?>(null)
     private var voiceTaskPriority = mutableStateOf<com.example.todolistt.data.local.Priority?>(null)
     private var voiceTaskDate = mutableStateOf<Long?>(null)
+    private var voiceTaskEndDate = mutableStateOf<Long?>(null)
+    private var voiceTaskStartTime = mutableStateOf<Long?>(null)
+    private var voiceTaskEndTime = mutableStateOf<Long?>(null)
+    private var voiceTaskCategory = mutableStateOf<String?>(null)
+    private var voiceTaskRecurrence = mutableStateOf<com.example.todolistt.data.local.RecurrenceType?>(null)
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -84,47 +89,125 @@ class MainActivity : ComponentActivity() {
     private fun parseVoiceInput(text: String) {
         var cleanText = text
         
-        // Priority Parsing
+        // 1. Priority Parsing (Default to LOW)
         val priority = when {
-            text.contains("high priority", ignoreCase = true) || text.contains("important", ignoreCase = true) -> {
-                cleanText = cleanText.replace("high priority", "", ignoreCase = true).replace("important", "", ignoreCase = true)
+            text.contains("high", ignoreCase = true) || text.contains("urgent", ignoreCase = true) || text.contains("important", ignoreCase = true) -> {
+                cleanText = cleanText.replace("(?i)high priority|high|urgent|important".toRegex(), "")
                 com.example.todolistt.data.local.Priority.HIGH
             }
-            text.contains("medium priority", ignoreCase = true) -> {
-                cleanText = cleanText.replace("medium priority", "", ignoreCase = true)
+            text.contains("medium", ignoreCase = true) -> {
+                cleanText = cleanText.replace("(?i)medium priority|medium".toRegex(), "")
                 com.example.todolistt.data.local.Priority.MEDIUM
             }
-            text.contains("low priority", ignoreCase = true) -> {
-                cleanText = cleanText.replace("low priority", "", ignoreCase = true)
+            text.contains("low", ignoreCase = true) -> {
+                cleanText = cleanText.replace("(?i)low priority|low".toRegex(), "")
                 com.example.todolistt.data.local.Priority.LOW
             }
-            else -> null
+            else -> com.example.todolistt.data.local.Priority.LOW
         }
 
-        // Date Parsing (Today/Tomorrow)
+        // 2. Recurrence Parsing
+        var recurrence: com.example.todolistt.data.local.RecurrenceType? = null
+        if (text.contains("daily", ignoreCase = true) || text.contains("every day", ignoreCase = true)) {
+            recurrence = com.example.todolistt.data.local.RecurrenceType.DAILY
+            cleanText = cleanText.replace("(?i)daily|every day".toRegex(), "")
+        }
+
+        // 3. Date Parsing (Today/Tomorrow/Specific Date)
         val calendar = java.util.Calendar.getInstance()
         var date: Long? = null
+        var endDate: Long? = null
         
-        if (text.contains("today", ignoreCase = true)) {
-            cleanText = cleanText.replace("today", "", ignoreCase = true)
-            calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
-            calendar.set(java.util.Calendar.MINUTE, 0)
-            calendar.set(java.util.Calendar.SECOND, 0)
-            calendar.set(java.util.Calendar.MILLISECOND, 0)
-            date = calendar.timeInMillis
-        } else if (text.contains("tomorrow", ignoreCase = true)) {
+        // Tomorrow/Today/Now
+        if (text.contains("tomorrow", ignoreCase = true)) {
             cleanText = cleanText.replace("tomorrow", "", ignoreCase = true)
             calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
-            calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
-            calendar.set(java.util.Calendar.MINUTE, 0)
-            calendar.set(java.util.Calendar.SECOND, 0)
-            calendar.set(java.util.Calendar.MILLISECOND, 0)
-            date = calendar.timeInMillis
+            date = calendar.apply { set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }.timeInMillis
+        } else if (text.contains("today", ignoreCase = true) || text.contains("now", ignoreCase = true)) {
+            cleanText = cleanText.replace("(?i)today|now".toRegex(), "")
+            date = calendar.apply { set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }.timeInMillis
+        }
+
+        // Specific Date detection (e.g., "May 3") - avoid "to May 3"
+        val monthNames = "Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?"
+        val specificDateRegex = "(?<!to\\s|until\\s)\\b($monthNames)\\s+(\\d{1,2})\\b".toRegex(RegexOption.IGNORE_CASE)
+        val specificDateMatch = specificDateRegex.find(text)
+        if (specificDateMatch != null) {
+            val monthStr = specificDateMatch.groupValues[1]
+            val day = specificDateMatch.groupValues[2].toInt()
+            val monthIdx = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+                .indexOfFirst { monthStr.startsWith(it, ignoreCase = true) }
+            
+            val dateCal = java.util.Calendar.getInstance()
+            dateCal.set(java.util.Calendar.MONTH, monthIdx)
+            dateCal.set(java.util.Calendar.DAY_OF_MONTH, day)
+            date = dateCal.apply { set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }.timeInMillis
+            cleanText = cleanText.replace(specificDateMatch.value, "", ignoreCase = true)
+        }
+
+        // End Date detection "to May 3" or "until May 3"
+        val endDateRegex = "(?i)(?:to|until)\\s+($monthNames)\\s+(\\d{1,2})".toRegex()
+        val dateMatch = endDateRegex.find(text)
+        if (dateMatch != null) {
+            val monthStr = dateMatch.groupValues[1]
+            val day = dateMatch.groupValues[2].toInt()
+            val monthIdx = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+                .indexOfFirst { monthStr.startsWith(it, ignoreCase = true) }
+            
+            val endCal = java.util.Calendar.getInstance()
+            endCal.set(java.util.Calendar.MONTH, monthIdx)
+            endCal.set(java.util.Calendar.DAY_OF_MONTH, day)
+            endDate = endCal.apply { set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }.timeInMillis
+            cleanText = cleanText.replace(dateMatch.value, "", ignoreCase = true)
+        }
+
+        // 4. Category Parsing
+        var category: String? = null
+        val categoryWords = listOf("Personal", "Work", "Meeting", "Others")
+        for (word in categoryWords) {
+            if (text.contains(word, ignoreCase = true)) {
+                category = word
+                cleanText = cleanText.replace(word, "", ignoreCase = true)
+                cleanText = cleanText.replace("(?i)(?:for|in|category)\\s+".toRegex(), "")
+                break
+            }
+        }
+
+        // 5. Time Range Parsing (at 9 AM to 10 AM)
+        var startTime: Long? = null
+        var endTime: Long? = null
+        
+        fun parseSingleTime(h: Int, m: Int, amPm: String?): Long {
+            var hour = h
+            if (amPm?.uppercase() == "PM" && hour < 12) hour += 12
+            if (amPm?.uppercase() == "AM" && hour == 12) hour = 0
+            return (hour * 3600000L) + (m * 60000L)
+        }
+
+        val timeRangeRegex = "(?i)at (\\d{1,2})(:(\\d{2}))?\\s*(AM|PM)?\\s*(?:to|until|-)\\s*(\\d{1,2})(:(\\d{2}))?\\s*(AM|PM)?".toRegex()
+        val rangeMatch = timeRangeRegex.find(text)
+        
+        if (rangeMatch != null) {
+            startTime = parseSingleTime(rangeMatch.groupValues[1].toInt(), if (rangeMatch.groupValues[3].isNotEmpty()) rangeMatch.groupValues[3].toInt() else 0, rangeMatch.groupValues[4])
+            endTime = parseSingleTime(rangeMatch.groupValues[5].toInt(), if (rangeMatch.groupValues[7].isNotEmpty()) rangeMatch.groupValues[7].toInt() else 0, rangeMatch.groupValues[8])
+            cleanText = cleanText.replace(rangeMatch.value, "", ignoreCase = true)
+        } else {
+            val singleTimeRegex = "(?i)at (\\d{1,2})(:(\\d{2}))?\\s*(AM|PM)?".toRegex()
+            val singleMatch = singleTimeRegex.find(text)
+            if (singleMatch != null) {
+                startTime = parseSingleTime(singleMatch.groupValues[1].toInt(), if (singleMatch.groupValues[3].isNotEmpty()) singleMatch.groupValues[3].toInt() else 0, singleMatch.groupValues[4])
+                cleanText = cleanText.replace(singleMatch.value, "", ignoreCase = true)
+            }
         }
 
         voiceTaskTitle.value = cleanText.trim().replaceFirstChar { it.uppercase() }
         voiceTaskPriority.value = priority
         voiceTaskDate.value = date
+        voiceTaskEndDate.value = endDate
+        voiceTaskStartTime.value = startTime
+        voiceTaskEndTime.value = endTime
+        voiceTaskCategory.value = category
+        voiceTaskRecurrence.value = recurrence
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -158,6 +241,11 @@ class MainActivity : ComponentActivity() {
                     val voiceTitle by voiceTaskTitle
                     val voicePriority by voiceTaskPriority
                     val voiceDate by voiceTaskDate
+                    val voiceEndDate by voiceTaskEndDate
+                    val voiceStartTime by voiceTaskStartTime
+                    val voiceEndTime by voiceTaskEndTime
+                    val voiceCategory by voiceTaskCategory
+                    val voiceRecurrence by voiceTaskRecurrence
                     
                     when (currentScreen) {
                         "tasks" -> {
@@ -172,10 +260,20 @@ class MainActivity : ComponentActivity() {
                                 voiceTitle = voiceTitle,
                                 voicePriority = voicePriority,
                                 voiceDate = voiceDate,
+                                voiceEndDate = voiceEndDate,
+                                voiceStartTime = voiceStartTime,
+                                voiceEndTime = voiceEndTime,
+                                voiceCategory = voiceCategory,
+                                voiceRecurrence = voiceRecurrence,
                                 onVoiceComplete = { 
                                     voiceTaskTitle.value = null
                                     voiceTaskPriority.value = null
                                     voiceTaskDate.value = null
+                                    voiceTaskEndDate.value = null
+                                    voiceTaskStartTime.value = null
+                                    voiceTaskEndTime.value = null
+                                    voiceTaskCategory.value = null
+                                    voiceTaskRecurrence.value = null
                                 },
                                 onStartVoiceInput = { startVoiceInput() }
                             )
@@ -273,7 +371,13 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak the task title")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "What is the task?")
+            
+            // Allow more time for the user to think (milliseconds)
+            // Using string keys for broader compatibility
+            putExtra("android.speech.extras.SPEECH_INPUT_MINIMUM_MILLIS", 3000L)
+            putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 2000L)
+            putExtra("android.speech.extras.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 2000L)
         }
         try {
             speechRecognizerLauncher.launch(intent)

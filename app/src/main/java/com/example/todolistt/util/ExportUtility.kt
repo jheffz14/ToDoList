@@ -1,16 +1,18 @@
 package com.example.todolistt.util
 
+import android.content.ContentValues
 import android.content.Context
-import android.content.Intent
-import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
-import android.net.Uri
-import androidx.core.content.FileProvider
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.Toast
 import com.example.todolistt.data.local.Task
 import com.example.todolistt.data.local.TaskStatus
 import java.io.File
 import java.io.FileOutputStream
+import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -18,10 +20,25 @@ object ExportUtility {
 
     fun exportTasksToCsv(context: Context, tasks: List<Task>) {
         val fileName = "tasks_report_${System.currentTimeMillis()}.csv"
-        val file = File(context.cacheDir, fileName)
         
         try {
-            FileOutputStream(file).use { out ->
+            val outputStream: OutputStream?
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                }
+                val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                outputStream = uri?.let { context.contentResolver.openOutputStream(it) }
+            } else {
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val file = File(downloadsDir, fileName)
+                outputStream = FileOutputStream(file)
+            }
+
+            outputStream?.use { out ->
                 val header = "Title,Description,Category,Priority,Status,Created At,Target Date\n"
                 out.write(header.toByteArray())
                 
@@ -32,9 +49,10 @@ object ExportUtility {
                     out.write(row.toByteArray())
                 }
             }
-            shareFile(context, file, "text/csv")
+            Toast.makeText(context, "CSV exported to Downloads folder", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             e.printStackTrace()
+            Toast.makeText(context, "Failed to export CSV: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -43,7 +61,6 @@ object ExportUtility {
         val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 size
         var page = pdfDocument.startPage(pageInfo)
         var canvas = page.canvas
-        val paint = Paint()
         val titlePaint = Paint().apply {
             textSize = 18f
             isFakeBoldText = true
@@ -58,7 +75,7 @@ object ExportUtility {
         
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
-        tasks.forEachIndexed { index, task ->
+        tasks.forEach { task ->
             if (y > 800) {
                 pdfDocument.finishPage(page)
                 page = pdfDocument.startPage(pageInfo)
@@ -81,29 +98,33 @@ object ExportUtility {
         pdfDocument.finishPage(page)
 
         val fileName = "tasks_report_${System.currentTimeMillis()}.pdf"
-        val file = File(context.cacheDir, fileName)
         
         try {
-            pdfDocument.writeTo(FileOutputStream(file))
-            shareFile(context, file, "application/pdf")
+            val outputStream: OutputStream?
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                }
+                val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                outputStream = uri?.let { context.contentResolver.openOutputStream(it) }
+            } else {
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val file = File(downloadsDir, fileName)
+                outputStream = FileOutputStream(file)
+            }
+
+            outputStream?.use { out ->
+                pdfDocument.writeTo(out)
+            }
+            Toast.makeText(context, "PDF exported to Downloads folder", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             e.printStackTrace()
+            Toast.makeText(context, "Failed to export PDF: ${e.message}", Toast.LENGTH_SHORT).show()
         } finally {
             pdfDocument.close()
         }
-    }
-
-    private fun shareFile(context: Context, file: File, mimeType: String) {
-        val uri: Uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file
-        )
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = mimeType
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(Intent.createChooser(intent, "Share Report"))
     }
 }
