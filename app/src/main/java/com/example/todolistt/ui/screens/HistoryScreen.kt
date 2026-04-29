@@ -257,7 +257,8 @@ fun HistoryScreen(
             ManageCategoriesDialog(
                 categories = categories,
                 onDismiss = { showManageCategoriesGlobal = false },
-                onDelete = { viewModel.deleteCategory(it) }
+                onDelete = { viewModel.deleteCategory(it) },
+                onEdit = { old, new -> viewModel.updateCategory(old, new) }
             )
         }
 

@@ -20,4 +20,7 @@ interface CategoryDao {
 
     @Query("DELETE FROM categories WHERE name = :name AND isDefault = 0")
     suspend fun deleteCategoryByName(name: String)
+
+    @Query("UPDATE categories SET name = :newName WHERE name = :oldName AND isDefault = 0")
+    suspend fun updateCategoryName(oldName: String, newName: String)
 }

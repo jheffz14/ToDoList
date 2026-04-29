@@ -193,6 +193,19 @@ class TaskViewModel(
         }
     }
 
+    fun updateCategory(oldName: String, newName: String) {
+        viewModelScope.launch {
+            // Update the category itself
+            categoryRepository.update(oldName, newName)
+            // Update all tasks using this category
+            repository.updateCategory(oldName, newName)
+            
+            if (_selectedCategory.value == oldName) {
+                _selectedCategory.value = newName
+            }
+        }
+    }
+
     fun deleteCategory(categoryName: String) {
         viewModelScope.launch {
             // Check if any tasks are using this category before deleting

@@ -25,6 +25,9 @@ interface TaskDao {
     @Update
     suspend fun updateTask(task: Task)
 
+    @Query("UPDATE tasks SET category = :newName WHERE category = :oldName")
+    suspend fun updateTasksCategory(oldName: String, newName: String)
+
     @Delete
     suspend fun deleteTask(task: Task)
 }

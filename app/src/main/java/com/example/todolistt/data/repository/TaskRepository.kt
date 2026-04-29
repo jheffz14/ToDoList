@@ -15,6 +15,10 @@ class TaskRepository(private val taskDao: TaskDao) {
         taskDao.updateTask(task)
     }
 
+    suspend fun updateCategory(oldName: String, newName: String) {
+        taskDao.updateTasksCategory(oldName, newName)
+    }
+
     suspend fun delete(task: Task) {
         taskDao.deleteTask(task)
     }

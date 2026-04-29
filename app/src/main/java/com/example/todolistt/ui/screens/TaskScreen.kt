@@ -616,7 +616,8 @@ fun TaskScreen(
             ManageCategoriesDialog(
                 categories = categories,
                 onDismiss = { showManageCategoriesGlobal = false },
-                onDelete = { viewModel.deleteCategory(it) }
+                onDelete = { viewModel.deleteCategory(it) },
+                onEdit = { old, new -> viewModel.updateCategory(old, new) }
             )
         }
 
@@ -1407,12 +1408,17 @@ fun TaskDialog(
 fun ManageCategoriesDialog(
     categories: List<String>,
     onDismiss: () -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    onEdit: (String, String) -> Unit
 ) {
     val defaults = listOf("Personal", "Work", "Meeting", "Others")
     val customCategories = categories.filter { cat ->
         defaults.none { it.equals(cat, ignoreCase = true) }
     }
+
+    var categoryToDelete by remember { mutableStateOf<String?>(null) }
+    var categoryToEdit by remember { mutableStateOf<String?>(null) }
+    var editName by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1429,9 +1435,17 @@ fun ManageCategoriesDialog(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(cat, fontWeight = FontWeight.Bold)
-                                IconButton(onClick = { onDelete(cat) }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                                Text(cat, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                Row {
+                                    IconButton(onClick = { 
+                                        categoryToEdit = cat 
+                                        editName = cat
+                                    }) {
+                                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = SketchPrimary)
+                                    }
+                                    IconButton(onClick = { categoryToDelete = cat }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                                    }
                                 }
                             }
                             HorizontalDivider(thickness = 0.5.dp)
@@ -1451,6 +1465,61 @@ fun ManageCategoriesDialog(
             }
         }
     )
+
+    if (categoryToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { categoryToDelete = null },
+            title = { Text("Delete Category") },
+            text = { Text("Are you sure you want to delete the category '${categoryToDelete}'? This will not delete the tasks, but they will no longer be associated with this category.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    categoryToDelete?.let { onDelete(it) }
+                    categoryToDelete = null
+                }) {
+                    Text("DELETE", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { categoryToDelete = null }) {
+                    Text("CANCEL")
+                }
+            }
+        )
+    }
+
+    if (categoryToEdit != null) {
+        AlertDialog(
+            onDismissRequest = { categoryToEdit = null },
+            title = { Text("Edit Category") },
+            text = {
+                OutlinedTextField(
+                    value = editName,
+                    onValueChange = { editName = it },
+                    label = { Text("Category Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editName.isNotBlank() && categoryToEdit != null) {
+                            onEdit(categoryToEdit!!, editName.trim())
+                            categoryToEdit = null
+                        }
+                    },
+                    enabled = editName.isNotBlank()
+                ) {
+                    Text("SAVE")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { categoryToEdit = null }) {
+                    Text("CANCEL")
+                }
+            }
+        )
+    }
 }
 
 @Composable
