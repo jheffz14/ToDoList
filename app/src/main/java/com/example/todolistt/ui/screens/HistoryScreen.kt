@@ -11,6 +11,7 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -91,7 +92,11 @@ fun HistoryScreen(
                             IconButton(onClick = { showExportMenu = true }) {
                                 Icon(Icons.Default.Share, contentDescription = "Export History", tint = SketchPrimary)
                             }
-                            DropdownMenu(expanded = showExportMenu, onDismissRequest = { showExportMenu = false }) {
+                            DropdownMenu(
+                                expanded = showExportMenu,
+                                onDismissRequest = { showExportMenu = false },
+                                modifier = Modifier.widthIn(max = 250.dp)
+                            ) {
                                 DropdownMenuItem(
                                     text = { Text("Export as CSV") },
                                     onClick = {
@@ -123,31 +128,41 @@ fun HistoryScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
-                    placeholder = { Text("Search completed tasks...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    placeholder = { Text("Search completed tasks...", fontSize = 14.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    },
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = SketchPrimary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
                     ),
+                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
                     singleLine = true
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Month Filter
                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                     FilterChip(
                         selected = true,
                         onClick = { showMonthMenu = true },
-                        label = { Text(dateLabel) },
-                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
-                        shape = RoundedCornerShape(8.dp)
+                        label = { Text(dateLabel, fontSize = 10.sp) },
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(28.dp)
                     )
                     DropdownMenu(
                         expanded = showMonthMenu,
                         onDismissRequest = { showMonthMenu = false },
-                        modifier = Modifier.heightIn(max = 400.dp)
+                        modifier = Modifier.widthIn(min = 150.dp, max = 280.dp).heightIn(max = 400.dp)
                     ) {
                         for (i in -12..0) {
                             val cal = Calendar.getInstance().apply { add(Calendar.MONTH, i) }

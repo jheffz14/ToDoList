@@ -168,7 +168,11 @@ fun TaskScreen(
                             IconButton(onClick = { showExportMenu = true }) {
                                 Icon(Icons.Default.Share, contentDescription = "Export")
                             }
-                            DropdownMenu(expanded = showExportMenu, onDismissRequest = { showExportMenu = false }) {
+                            DropdownMenu(
+                                expanded = showExportMenu,
+                                onDismissRequest = { showExportMenu = false },
+                                modifier = Modifier.widthIn(max = 250.dp)
+                            ) {
                                 DropdownMenuItem(
                                     text = { Text("Export as PDF") },
                                     onClick = {
@@ -226,36 +230,10 @@ fun TaskScreen(
                 // Improved Filter UI
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    item {
-                        // Priority Filter Dropdown
-                        var showPriorityMenu by remember { mutableStateOf(false) }
-                        Box {
-                            FilterChip(
-                                selected = selectedPriority != null,
-                                onClick = { showPriorityMenu = true },
-                                label = { Text(selectedPriority?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Priority", fontSize = 10.sp) },
-                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(12.dp)) },
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.height(32.dp)
-                            )
-                            DropdownMenu(expanded = showPriorityMenu, onDismissRequest = { showPriorityMenu = false }) {
-                                DropdownMenuItem(text = { Text("All Priorities") }, onClick = {
-                                    viewModel.setPriorityFilter(null)
-                                    showPriorityMenu = false
-                                })
-                                Priority.entries.forEach { priority ->
-                                    DropdownMenuItem(text = { Text(priority.name.lowercase().replaceFirstChar { it.uppercase() }) }, onClick = {
-                                        viewModel.setPriorityFilter(priority)
-                                        showPriorityMenu = false
-                                    })
-                                }
-                            }
-                        }
-                    }
                     item {
                         // Month Selector Dropdown
                         var showMonthMenu by remember { mutableStateOf(false) }
@@ -270,15 +248,16 @@ fun TaskScreen(
                                             set(Calendar.YEAR, selectedYear)
                                         }.time
                                     )
-                                    Text(monthName, fontSize = 11.sp)
+                                    Text(monthName, fontSize = 10.sp)
                                 },
-                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                                shape = RoundedCornerShape(12.dp)
+                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.height(28.dp)
                             )
                             DropdownMenu(
                                 expanded = showMonthMenu,
                                 onDismissRequest = { showMonthMenu = false },
-                                modifier = Modifier.heightIn(max = 400.dp)
+                                modifier = Modifier.widthIn(min = 150.dp, max = 280.dp).heightIn(max = 400.dp)
                             ) {
                                 // Show range: 12 months back to 24 months forward
                                 for (i in -12..24) {
@@ -287,14 +266,14 @@ fun TaskScreen(
                                     val y = cal.get(Calendar.YEAR)
                                     val label = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
                                     DropdownMenuItem(
-                                        text = { Text(label) },
+                                        text = { Text(label, fontSize = 14.sp) },
                                         onClick = {
                                             viewModel.setDateFilter(m, y)
                                             showMonthMenu = false
                                         },
                                         leadingIcon = {
                                             if (selectedMonth == m && selectedYear == y) {
-                                                Icon(Icons.Default.Check, contentDescription = null)
+                                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                             }
                                         }
                                     )
@@ -302,6 +281,37 @@ fun TaskScreen(
                             }
                         }
                     }
+                    item {
+                        // Priority Filter Dropdown
+                        var showPriorityMenu by remember { mutableStateOf(false) }
+                        Box {
+                            FilterChip(
+                                selected = selectedPriority != null,
+                                onClick = { showPriorityMenu = true },
+                                label = { Text(selectedPriority?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Priority", fontSize = 10.sp) },
+                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(12.dp)) },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.height(28.dp)
+                            )
+                            DropdownMenu(
+                                expanded = showPriorityMenu, 
+                                onDismissRequest = { showPriorityMenu = false },
+                                modifier = Modifier.widthIn(max = 200.dp)
+                            ) {
+                                DropdownMenuItem(text = { Text("All Priorities", fontSize = 14.sp) }, onClick = {
+                                    viewModel.setPriorityFilter(null)
+                                    showPriorityMenu = false
+                                })
+                                Priority.entries.forEach { priority ->
+                                    DropdownMenuItem(text = { Text(priority.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 14.sp) }, onClick = {
+                                        viewModel.setPriorityFilter(priority)
+                                        showPriorityMenu = false
+                                    })
+                                }
+                            }
+                        }
+                    }
+
 
                     item {
                         // Status Filter Dropdown
@@ -314,18 +324,22 @@ fun TaskScreen(
                         label = { Text(selectedStatus?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Status", fontSize = 10.sp) },
                         trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(12.dp)) },
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.height(32.dp)
+                        modifier = Modifier.height(28.dp)
                     )
-                            DropdownMenu(expanded = showStatusMenu, onDismissRequest = { showStatusMenu = false }) {
-                                DropdownMenuItem(text = { Text("All Status") }, onClick = {
+                            DropdownMenu(
+                                expanded = showStatusMenu, 
+                                onDismissRequest = { showStatusMenu = false },
+                                modifier = Modifier.widthIn(max = 200.dp)
+                            ) {
+                                DropdownMenuItem(text = { Text("All Status", fontSize = 14.sp) }, onClick = {
                                     viewModel.setStatusFilter(null)
                                     showStatusMenu = false
                                 })
-                                DropdownMenuItem(text = { Text("Pending") }, onClick = {
+                                DropdownMenuItem(text = { Text("Pending", fontSize = 14.sp) }, onClick = {
                                     viewModel.setStatusFilter(TaskStatus.PENDING)
                                     showStatusMenu = false
                                 })
-                                DropdownMenuItem(text = { Text("Completed") }, onClick = {
+                                DropdownMenuItem(text = { Text("Completed", fontSize = 14.sp) }, onClick = {
                                     viewModel.setStatusFilter(TaskStatus.COMPLETED)
                                     showStatusMenu = false
                                 })
@@ -343,17 +357,21 @@ fun TaskScreen(
                         label = { Text(selectedRecurrence?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Recurrence", fontSize = 10.sp) },
                         trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(12.dp)) },
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.height(32.dp)
+                        modifier = Modifier.height(28.dp)
                     )
-                            DropdownMenu(expanded = showRecurrenceMenu, onDismissRequest = { showRecurrenceMenu = false }) {
-                                DropdownMenuItem(text = { Text("All Recurrences") }, onClick = {
+                            DropdownMenu(
+                                expanded = showRecurrenceMenu, 
+                                onDismissRequest = { showRecurrenceMenu = false },
+                                modifier = Modifier.widthIn(max = 200.dp)
+                            ) {
+                                DropdownMenuItem(text = { Text("All Recurrences", fontSize = 14.sp) }, onClick = {
                                     viewModel.setRecurrenceFilter(null)
                                     showRecurrenceMenu = false
                                 })
                                 // Only show Today (NONE) and Daily in the filter
                                 listOf(RecurrenceType.NONE, RecurrenceType.DAILY).forEach { type ->
                                     DropdownMenuItem(
-                                        text = { Text(if (type == RecurrenceType.NONE) "One-Time" else type.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                                        text = { Text(if (type == RecurrenceType.NONE) "One-Time" else type.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 14.sp) },
                                         onClick = {
                                             viewModel.setRecurrenceFilter(type)
                                             showRecurrenceMenu = false
@@ -374,32 +392,32 @@ fun TaskScreen(
                         label = { Text(selectedCategory ?: "Category", fontSize = 10.sp) },
                         trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(12.dp)) },
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.height(32.dp)
+                        modifier = Modifier.height(28.dp)
                     )
                             DropdownMenu(
                                 expanded = showCategoryMenu,
                                 onDismissRequest = { showCategoryMenu = false },
-                                modifier = Modifier.widthIn(min = 200.dp).heightIn(max = 400.dp)
+                                modifier = Modifier.widthIn(min = 150.dp, max = 280.dp).heightIn(max = 400.dp)
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("All Categories") },
+                                    text = { Text("All Categories", fontSize = 14.sp) },
                                     onClick = {
                                         viewModel.setCategoryFilter(null)
                                         showCategoryMenu = false
                                     },
-                                    leadingIcon = { if (selectedCategory == null) Icon(Icons.Default.Check, contentDescription = null) }
+                                    leadingIcon = { if (selectedCategory == null) Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
                                 )
                                 HorizontalDivider()
                                 categories.forEach { category ->
                                     val isSelected = selectedCategory == category
                                     DropdownMenuItem(
-                                        text = { Text(category) },
+                                        text = { Text(category, fontSize = 14.sp) },
                                         onClick = {
                                             viewModel.setCategoryFilter(category)
                                             showCategoryMenu = false
                                         },
                                         leadingIcon = {
-                                            if (isSelected) Icon(Icons.Default.Check, contentDescription = null)
+                                            if (isSelected) Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                         }
                                     )
                                 }
@@ -1130,7 +1148,7 @@ fun TaskDialog(
                                 DropdownMenu(
                                     expanded = expanded,
                                     onDismissRequest = { expanded = false },
-                                    modifier = Modifier.fillMaxWidth(0.7f).heightIn(max = 400.dp)
+                                    modifier = Modifier.widthIn(min = 150.dp, max = 280.dp).heightIn(max = 400.dp)
                                 ) {
                                     filteredCategories.forEach { cat ->
                                         DropdownMenuItem(

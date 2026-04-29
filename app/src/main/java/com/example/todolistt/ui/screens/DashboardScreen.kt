@@ -162,7 +162,11 @@ fun DashboardScreen(
                     IconButton(onClick = { showExportMenu = true }) {
                         Icon(Icons.Default.Share, contentDescription = "Export Analytics", tint = SketchPrimary)
                     }
-                    DropdownMenu(expanded = showExportMenu, onDismissRequest = { showExportMenu = false }) {
+                    DropdownMenu(
+                        expanded = showExportMenu,
+                        onDismissRequest = { showExportMenu = false },
+                        modifier = Modifier.widthIn(max = 250.dp)
+                    ) {
                         DropdownMenuItem(
                             text = { Text("Export Analytics (CSV)") },
                             onClick = {
@@ -210,7 +214,7 @@ fun DashboardScreen(
                         DropdownMenu(
                             expanded = showMonthMenu,
                             onDismissRequest = { showMonthMenu = false },
-                            modifier = Modifier.heightIn(max = 400.dp)
+                            modifier = Modifier.widthIn(min = 150.dp, max = 280.dp).heightIn(max = 400.dp)
                         ) {
                             DropdownMenuItem(
                                 text = { Text("Select Date Range...", color = SketchPrimary, fontWeight = FontWeight.Bold) },
@@ -397,7 +401,11 @@ fun DashboardScreen(
                                 Text(categoryTimeFilter, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            DropdownMenu(expanded = showTimeFilterMenu, onDismissRequest = { showTimeFilterMenu = false }) {
+                            DropdownMenu(
+                                expanded = showTimeFilterMenu,
+                                onDismissRequest = { showTimeFilterMenu = false },
+                                modifier = Modifier.widthIn(max = 200.dp)
+                            ) {
                                 listOf("In 7 days", "In 30 days", "All").forEach { filter ->
                                     DropdownMenuItem(
                                         text = { Text(filter) },
@@ -637,7 +645,11 @@ fun MonthSpinner(selectedMonth: Int, onMonthSelected: (Int) -> Unit, modifier: M
         OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
             Text(months[selectedMonth])
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.widthIn(max = 200.dp).heightIn(max = 400.dp)
+        ) {
             months.forEachIndexed { index, month ->
                 DropdownMenuItem(
                     text = { Text(month) },
@@ -661,7 +673,11 @@ fun YearSpinner(selectedYear: Int, onYearSelected: (Int) -> Unit, modifier: Modi
         OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
             Text(selectedYear.toString())
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.widthIn(max = 200.dp).heightIn(max = 400.dp)
+        ) {
             years.forEach { year ->
                 DropdownMenuItem(
                     text = { Text(year.toString()) },
