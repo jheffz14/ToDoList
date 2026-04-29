@@ -54,6 +54,16 @@ class TaskWidgetProvider : AppWidgetProvider() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         views.setOnClickPendingIntent(R.id.widget_refresh, refreshPendingIntent)
+
+        // Quick add button
+        val addIntent = Intent(context, MainActivity::class.java).apply {
+            action = "ADD_TASK"
+        }
+        val addPendingIntent = PendingIntent.getActivity(
+            context, 1, addIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        views.setOnClickPendingIntent(R.id.widget_add, addPendingIntent)
         
         appWidgetManager.updateAppWidget(appWidgetId, views)
         appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.widget_list)

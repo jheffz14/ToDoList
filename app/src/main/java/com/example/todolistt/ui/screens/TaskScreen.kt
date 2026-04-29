@@ -25,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,6 +38,7 @@ import com.example.todolistt.data.local.TaskStatus
 import com.example.todolistt.ui.theme.SketchError
 import com.example.todolistt.ui.theme.SketchPrimary
 import com.example.todolistt.ui.viewmodel.TaskViewModel
+import com.example.todolistt.util.ExportUtility
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -47,7 +49,13 @@ fun TaskScreen(
     onNavigateToHistory: () -> Unit,
     onNavigateToDashboard: () -> Unit,
     onNavigateToArchive: () -> Unit,
-    initialTaskId: Int? = null
+    initialTaskId: Int? = null,
+    initialAddTask: Boolean = false,
+    voiceTitle: String? = null,
+    voicePriority: Priority? = null,
+    voiceDate: Long? = null,
+    onVoiceComplete: () -> Unit = {},
+    onStartVoiceInput: () -> Unit = {}
 ) {
     val tasks by viewModel.tasks.collectAsState()
     val categories by viewModel.categories.collectAsState()
@@ -57,13 +65,24 @@ fun TaskScreen(
     val selectedYear by viewModel.selectedYear.collectAsState()
     val selectedStatus by viewModel.selectedStatus.collectAsState()
     val selectedRecurrence by viewModel.selectedRecurrence.collectAsState()
+    val selectedPriority by viewModel.selectedPriority.collectAsState()
+
+    val context = LocalContext.current
 
     var showHistoryConfirmDialog by remember { mutableStateOf<Task?>(null) }
-    var showDialog by remember { mutableStateOf(false) }
+    var showDialog by remember { mutableStateOf(initialAddTask) }
     var taskToEdit by remember { mutableStateOf<Task?>(null) }
     var showManageCategoriesGlobal by remember { mutableStateOf(false) }
     var showClearConfirmDialog by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
     var showDeleteRecurrenceDialog by remember { mutableStateOf<Task?>(null) }
+
+    // Update showDialog when voiceTitle is received
+    LaunchedEffect(voiceTitle) {
+        if (!voiceTitle.isNullOrBlank()) {
+            taskToEdit = null
+            showDialog = true
+        }
+    }
 
     val selectedTasks = remember { mutableStateListOf<Int>() }
     var isSelectionMode by remember { mutableStateOf(false) }
@@ -144,6 +163,30 @@ fun TaskScreen(
                         IconButton(onClick = onNavigateToArchive) {
                             Icon(Icons.Default.Archive, contentDescription = "View Archive")
                         }
+                        var showExportMenu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { showExportMenu = true }) {
+                                Icon(Icons.Default.Share, contentDescription = "Export")
+                            }
+                            DropdownMenu(expanded = showExportMenu, onDismissRequest = { showExportMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Export as PDF") },
+                                    onClick = {
+                                        ExportUtility.exportTasksToPdf(context, tasks)
+                                        showExportMenu = false
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.PictureAsPdf, contentDescription = null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Export as CSV") },
+                                    onClick = {
+                                        ExportUtility.exportTasksToCsv(context, tasks)
+                                        showExportMenu = false
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.TableChart, contentDescription = null) }
+                                )
+                            }
+                        }
                         IconButton(onClick = {
                                 showClearConfirmDialog = "Clear all tasks?" to { viewModel.deleteAllTasks() }
                             }) {
@@ -153,7 +196,9 @@ fun TaskScreen(
                     }
                 }
 
-                // Global Search Bar
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Global Search Bar (Moved Upper)
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { viewModel.setSearchQuery(it) },
@@ -180,10 +225,37 @@ fun TaskScreen(
 
                 // Improved Filter UI
                 LazyRow(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    item {
+                        // Priority Filter Dropdown
+                        var showPriorityMenu by remember { mutableStateOf(false) }
+                        Box {
+                            FilterChip(
+                                selected = selectedPriority != null,
+                                onClick = { showPriorityMenu = true },
+                                label = { Text(selectedPriority?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Priority", fontSize = 10.sp) },
+                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(12.dp)) },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.height(32.dp)
+                            )
+                            DropdownMenu(expanded = showPriorityMenu, onDismissRequest = { showPriorityMenu = false }) {
+                                DropdownMenuItem(text = { Text("All Priorities") }, onClick = {
+                                    viewModel.setPriorityFilter(null)
+                                    showPriorityMenu = false
+                                })
+                                Priority.entries.forEach { priority ->
+                                    DropdownMenuItem(text = { Text(priority.name.lowercase().replaceFirstChar { it.uppercase() }) }, onClick = {
+                                        viewModel.setPriorityFilter(priority)
+                                        showPriorityMenu = false
+                                    })
+                                }
+                            }
+                        }
+                    }
                     item {
                         // Month Selector Dropdown
                         var showMonthMenu by remember { mutableStateOf(false) }
@@ -203,7 +275,11 @@ fun TaskScreen(
                                 trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) },
                                 shape = RoundedCornerShape(12.dp)
                             )
-                            DropdownMenu(expanded = showMonthMenu, onDismissRequest = { showMonthMenu = false }) {
+                            DropdownMenu(
+                                expanded = showMonthMenu,
+                                onDismissRequest = { showMonthMenu = false },
+                                modifier = Modifier.heightIn(max = 400.dp)
+                            ) {
                                 // Show range: 12 months back to 24 months forward
                                 for (i in -12..24) {
                                     val cal = Calendar.getInstance().apply { add(Calendar.MONTH, i) }
@@ -303,7 +379,7 @@ fun TaskScreen(
                             DropdownMenu(
                                 expanded = showCategoryMenu,
                                 onDismissRequest = { showCategoryMenu = false },
-                                modifier = Modifier.widthIn(min = 200.dp)
+                                modifier = Modifier.widthIn(min = 200.dp).heightIn(max = 400.dp)
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("All Categories") },
@@ -330,20 +406,38 @@ fun TaskScreen(
                             }
                         }
                     }
+
+                    if (selectedPriority != null || searchQuery.isNotEmpty() || selectedStatus != null || selectedRecurrence != null || selectedCategory != null) {
+                        item {
+                            TextButton(onClick = { viewModel.clearAllFilters(); viewModel.setSearchQuery("") }) {
+                                Text("Clear All", fontSize = 10.sp, color = Color.Red)
+                            }
+                        }
+                    }
                 }
             }
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    taskToEdit = null
-                    showDialog = true
-                },
-                containerColor = SketchPrimary,
-                shape = CircleShape,
-                modifier = Modifier.padding(bottom = 16.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Task", tint = Color.White)
+            Column(horizontalAlignment = Alignment.End) {
+                FloatingActionButton(
+                    onClick = onStartVoiceInput,
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    shape = CircleShape,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                ) {
+                    Icon(Icons.Default.Mic, contentDescription = "Voice Add", tint = Color.White)
+                }
+                FloatingActionButton(
+                    onClick = {
+                        taskToEdit = null
+                        showDialog = true
+                    },
+                    containerColor = SketchPrimary,
+                    shape = CircleShape,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Task", tint = Color.White)
+                }
             }
         },
         bottomBar = {
@@ -514,7 +608,13 @@ fun TaskScreen(
         if (showDialog) {
             TaskDialog(
                 task = taskToEdit,
-                onDismiss = { showDialog = false },
+                initialTitle = voiceTitle ?: "",
+                initialPriority = voicePriority,
+                initialDate = voiceDate,
+                onDismiss = { 
+                    showDialog = false
+                    onVoiceComplete()
+                },
                 onConfirm = { updatedTask ->
                     if (taskToEdit == null) {
                         viewModel.addTask(
@@ -534,6 +634,7 @@ fun TaskScreen(
                         viewModel.updateTask(updatedTask)
                     }
                     showDialog = false
+                    onVoiceComplete()
                 },
                 availableCategories = categoriesForDialog,
                 onDeleteCategory = { viewModel.deleteCategory(it) }
@@ -840,18 +941,21 @@ fun PriorityBadge(priority: Priority) {
 @Composable
 fun TaskDialog(
     task: Task? = null,
+    initialTitle: String = "",
+    initialPriority: Priority? = null,
+    initialDate: Long? = null,
     onDismiss: () -> Unit,
     onConfirm: (Task) -> Unit,
     onDeleteCategory: ((String) -> Unit)? = null,
     availableCategories: List<String> = listOf("Personal", "Work", "Meeting", "Others")
 ) {
-    var title by remember { mutableStateOf(task?.title ?: "") }
+    var title by remember { mutableStateOf(if (initialTitle.isNotEmpty()) initialTitle else task?.title ?: "") }
     var description by remember { mutableStateOf(task?.description ?: "") }
     var category by remember { mutableStateOf(task?.category ?: "Personal") }
     var customCategory by remember { mutableStateOf("") }
     var isAddingCustomCategory by remember { mutableStateOf(false) }
     var subcategory by remember { mutableStateOf(task?.subcategory ?: "") }
-    var priority by remember { mutableStateOf(task?.priority ?: Priority.MEDIUM) }
+    var priority by remember { mutableStateOf(initialPriority ?: task?.priority ?: Priority.MEDIUM) }
 
     var categorySearchQuery by remember { mutableStateOf("") }
 
@@ -859,7 +963,7 @@ fun TaskDialog(
     var showToDatePicker by remember { mutableStateOf(false) }
 
     var targetDate by remember {
-        mutableStateOf<Long?>(task?.targetDate ?: Calendar.getInstance().apply {
+        mutableStateOf<Long?>(initialDate ?: task?.targetDate ?: Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
@@ -1026,9 +1130,9 @@ fun TaskDialog(
                                 DropdownMenu(
                                     expanded = expanded,
                                     onDismissRequest = { expanded = false },
-                                    modifier = Modifier.fillMaxWidth(0.7f)
+                                    modifier = Modifier.fillMaxWidth(0.7f).heightIn(max = 400.dp)
                                 ) {
-                                    availableCategories.forEach { cat ->
+                                    filteredCategories.forEach { cat ->
                                         DropdownMenuItem(
                                             text = { Text(cat) },
                                             onClick = {

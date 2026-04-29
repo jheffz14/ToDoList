@@ -35,7 +35,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import com.example.todolistt.data.local.Priority
 import com.example.todolistt.ui.theme.SketchPrimary
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.ui.platform.LocalContext
+import com.example.todolistt.util.ExportUtility
 import com.example.todolistt.ui.viewmodel.TaskViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -63,6 +69,9 @@ fun DashboardScreen(
     var showManageCategoriesGlobal by remember { mutableStateOf(false) }
     var showMonthMenu by remember { mutableStateOf(false) }
     var showRangeDialog by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    var showExportMenu by remember { mutableStateOf(false) }
 
     val dateLabel = remember(selectedMonth, selectedYear, isRangeFilter, endMonth, endYear) {
         if (isRangeFilter) {
@@ -134,15 +143,47 @@ fun DashboardScreen(
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Text(
-                text = "DASHBOARD",
-                modifier = Modifier.padding(top = 4.dp),
-                style = MaterialTheme.typography.headlineLarge.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 2.sp,
-                    color = MaterialTheme.colorScheme.onBackground
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "DASHBOARD",
+                    modifier = Modifier.padding(top = 4.dp),
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 2.sp,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
                 )
-            )
+
+                Box {
+                    IconButton(onClick = { showExportMenu = true }) {
+                        Icon(Icons.Default.Share, contentDescription = "Export Analytics", tint = SketchPrimary)
+                    }
+                    DropdownMenu(expanded = showExportMenu, onDismissRequest = { showExportMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Export Analytics (CSV)") },
+                            onClick = {
+                                viewModel.tasks.value.let { tasks ->
+                                    ExportUtility.exportTasksToCsv(context, tasks)
+                                }
+                                showExportMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Export Analytics (PDF)") },
+                            onClick = {
+                                viewModel.tasks.value.let { tasks ->
+                                    ExportUtility.exportTasksToPdf(context, tasks)
+                                }
+                                showExportMenu = false
+                            }
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -423,6 +464,79 @@ fun DashboardScreen(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Weekly Comparison Chart
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Weekly Comparison", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    WeeklyComparisonChart(
+                        thisWeek = stats.weeklyComparison["This Week"] ?: emptyList(),
+                        lastWeek = stats.weeklyComparison["Last Week"] ?: emptyList(),
+                        modifier = Modifier.height(150.dp).fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        LegendItem("This Week", Color(0xFF4C6EF5))
+                        LegendItem("Last Week", Color(0xFF4C6EF5).copy(alpha = 0.3f))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Priority Heatmap
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Priority Distribution", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    PriorityHeatmap(
+                        data = stats.priorityDistribution,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Time of Day Insights
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    val peakHour = stats.hourlyCompletion.maxByOrNull { it.value }?.key ?: -1
+                    val peakText = if (peakHour != -1) {
+                        val period = if (peakHour < 12) "AM" else "PM"
+                        val displayHour = if (peakHour % 12 == 0) 12 else peakHour % 12
+                        "Your peak productivity is around $displayHour $period"
+                    } else "Complete more tasks to see insights"
+                    
+                    Text("Peak Productivity", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(peakText, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HourlyActivityChart(
+                        data = stats.hourlyCompletion,
+                        modifier = Modifier.height(100.dp).fillMaxWidth()
+                    )
+                }
+            }
             
             Spacer(modifier = Modifier.height(24.dp))
         }
@@ -619,6 +733,117 @@ fun CategoryLegend(label: String, value: String, color: Color) {
         Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
         Spacer(modifier = Modifier.width(4.dp))
         Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@Composable
+fun WeeklyComparisonChart(thisWeek: List<Int>, lastWeek: List<Int>, modifier: Modifier = Modifier) {
+    val maxVal = (thisWeek + lastWeek).maxOrNull()?.coerceAtLeast(1) ?: 1
+    
+    Canvas(modifier = modifier) {
+        val width = size.width
+        val height = size.height
+        val stepX = width / 6
+        
+        val thisWeekPath = Path().apply {
+            thisWeek.forEachIndexed { i, value ->
+                val x = i * stepX
+                val y = height - (value.toFloat() / maxVal * height)
+                if (i == 0) moveTo(x, y) else lineTo(x, y)
+            }
+        }
+        
+        val lastWeekPath = Path().apply {
+            lastWeek.forEachIndexed { i, value ->
+                val x = i * stepX
+                val y = height - (value.toFloat() / maxVal * height)
+                if (i == 0) moveTo(x, y) else lineTo(x, y)
+            }
+        }
+        
+        drawPath(
+            path = lastWeekPath,
+            color = Color(0xFF4C6EF5).copy(alpha = 0.3f),
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+        )
+        drawPath(
+            path = thisWeekPath,
+            color = Color(0xFF4C6EF5),
+            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+        )
+    }
+}
+
+@Composable
+fun PriorityHeatmap(data: Map<String, Map<Priority, Int>>, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Spacer(modifier = Modifier.width(80.dp))
+            Priority.entries.forEach { p ->
+                Text(
+                    p.name.lowercase().replaceFirstChar { it.uppercase() },
+                    modifier = Modifier.weight(1f), 
+                    textAlign = TextAlign.Center,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        
+        data.forEach { (category, priorities) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    category, 
+                    modifier = Modifier.width(80.dp), 
+                    fontSize = 12.sp, 
+                    maxLines = 1, 
+                    overflow = TextOverflow.Ellipsis
+                )
+                Priority.entries.forEach { p ->
+                    val count = priorities[p] ?: 0
+                    val alpha = if (count > 0) (0.2f + (count.toFloat() / 5).coerceAtMost(0.8f)) else 0.05f
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(30.dp)
+                            .padding(2.dp)
+                            .background(Color(0xFF4C6EF5).copy(alpha = alpha), RoundedCornerShape(4.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (count > 0) Text(count.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun HourlyActivityChart(data: Map<Int, Int>, modifier: Modifier = Modifier) {
+    val maxVal = data.values.maxOrNull()?.coerceAtLeast(1) ?: 1
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
+        (0..23).forEach { hour ->
+            val count = data[hour] ?: 0
+            val barHeight = (count.toFloat() / maxVal).coerceAtLeast(0.05f)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(barHeight)
+                    .background(
+                        if (count > 0) Color(0xFF4C6EF5) else Color.LightGray.copy(alpha = 0.2f),
+                        RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp)
+                    )
+            )
+        }
+    }
+}
+
+@Composable
+fun LegendItem(label: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.size(12.dp).background(color, RoundedCornerShape(2.dp)))
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

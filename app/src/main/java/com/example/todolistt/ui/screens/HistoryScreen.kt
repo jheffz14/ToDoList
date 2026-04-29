@@ -18,6 +18,9 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.ui.platform.LocalContext
+import com.example.todolistt.util.ExportUtility
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -55,6 +58,9 @@ fun HistoryScreen(
     var showManageCategoriesGlobal by remember { mutableStateOf(false) }
     val categories by viewModel.categories.collectAsState()
 
+    var showExportMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     val dateLabel = remember(selectedMonth, selectedYear) {
         val cal = Calendar.getInstance().apply {
             set(Calendar.DAY_OF_MONTH, 1)
@@ -80,8 +86,31 @@ fun HistoryScreen(
                             letterSpacing = 2.sp
                         )
                     )
-                    IconButton(onClick = { showClearConfirm = true }) {
-                        Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History", tint = Color.Red)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box {
+                            IconButton(onClick = { showExportMenu = true }) {
+                                Icon(Icons.Default.Share, contentDescription = "Export History", tint = SketchPrimary)
+                            }
+                            DropdownMenu(expanded = showExportMenu, onDismissRequest = { showExportMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Export as CSV") },
+                                    onClick = {
+                                        ExportUtility.exportTasksToCsv(context, historyTasks)
+                                        showExportMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Export as PDF") },
+                                    onClick = {
+                                        ExportUtility.exportTasksToPdf(context, historyTasks)
+                                        showExportMenu = false
+                                    }
+                                )
+                            }
+                        }
+                        IconButton(onClick = { showClearConfirm = true }) {
+                            Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History", tint = Color.Red)
+                        }
                     }
                 }
 

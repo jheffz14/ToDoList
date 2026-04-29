@@ -66,6 +66,9 @@ class TaskViewModel(
     private val _selectedRecurrence = MutableStateFlow<RecurrenceType?>(null)
     val selectedRecurrence: StateFlow<RecurrenceType?> = _selectedRecurrence
 
+    private val _selectedPriority = MutableStateFlow<Priority?>(null)
+    val selectedPriority: StateFlow<Priority?> = _selectedPriority
+
     private val _categoryTimeFilter = MutableStateFlow("All")
     val categoryTimeFilter: StateFlow<String> = _categoryTimeFilter
 
@@ -78,6 +81,7 @@ class TaskViewModel(
         _selectedCategory,
         _selectedStatus,
         _selectedRecurrence,
+        _selectedPriority,
         _selectedMonth,
         _selectedYear,
         _isRangeFilter,
@@ -90,11 +94,12 @@ class TaskViewModel(
         val category = params[2] as String?
         val status = params[3] as TaskStatus?
         val recurrence = params[4] as RecurrenceType?
-        val month = params[5] as Int
-        val year = params[6] as Int
-        val isRange = params[7] as Boolean
-        val endM = params[8] as Int
-        val endY = params[9] as Int
+        val priority = params[5] as Priority?
+        val month = params[6] as Int
+        val year = params[7] as Int
+        val isRange = params[8] as Boolean
+        val endM = params[9] as Int
+        val endY = params[10] as Int
 
         val calendar = Calendar.getInstance()
         tasks.filter { task ->
@@ -110,6 +115,8 @@ class TaskViewModel(
             if (status != null && task.status != status) return@filter false
             
             if (recurrence != null && task.recurrenceType != recurrence) return@filter false
+
+            if (priority != null && task.priority != priority) return@filter false
 
             calendar.timeInMillis = task.createdAt
             val taskMonth = calendar.get(Calendar.MONTH)
@@ -354,6 +361,41 @@ class TaskViewModel(
             generatePeriodicCompletion(filteredTasks, filterMonth, filterYear, "daily")
         }
 
+        // Enhanced Visualizations Data
+        
+        // 1. Weekly Comparison (This Week vs Last Week)
+        val thisWeekStart = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+        }
+        val lastWeekStart = (thisWeekStart.clone() as Calendar).apply { add(Calendar.WEEK_OF_YEAR, -1) }
+        
+        val thisWeekData = (0..6).map { d ->
+            val day = (thisWeekStart.clone() as Calendar).apply { add(Calendar.DAY_OF_WEEK, d) }
+            val nextDay = (day.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
+            allTasks.count { it.status == TaskStatus.COMPLETED && it.createdAt >= day.timeInMillis && it.createdAt < nextDay.timeInMillis }
+        }
+        val lastWeekData = (0..6).map { d ->
+            val day = (lastWeekStart.clone() as Calendar).apply { add(Calendar.DAY_OF_WEEK, d) }
+            val nextDay = (day.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
+            allTasks.count { it.status == TaskStatus.COMPLETED && it.createdAt >= day.timeInMillis && it.createdAt < nextDay.timeInMillis }
+        }
+
+        // 2. Priority Heatmap (Category -> Priority -> Count)
+        val priorityDistribution = tasksInRange.groupBy { it.category }
+            .mapValues { entry -> 
+                entry.value.groupBy { it.priority }.mapValues { it.value.size }
+            }
+
+        // 3. Time-of-Day Insights (Hour -> Count)
+        val hourlyCompletion = allTasks.filter { it.status == TaskStatus.COMPLETED }
+            .groupBy { 
+                calendar.timeInMillis = it.createdAt
+                calendar.get(Calendar.HOUR_OF_DAY)
+            }.mapValues { it.value.size }
+
         return TaskStats(
             totalTasks = total,
             completedTasks = completed,
@@ -363,9 +405,13 @@ class TaskViewModel(
             completedToday = completedToday,
             categoryDistribution = categoryDistribution,
             dailyCompletion = periodicCompletion,
-            recurrenceDistribution = recurrenceStats
+            recurrenceDistribution = recurrenceStats,
+            weeklyComparison = mapOf("This Week" to thisWeekData, "Last Week" to lastWeekData),
+            priorityDistribution = priorityDistribution,
+            hourlyCompletion = hourlyCompletion
         )
     }
+
 
     private fun generatePeriodicCompletion(tasks: List<Task>, month: Int, year: Int, type: String): List<Pair<String, Int>> {
         val dateFormat = SimpleDateFormat("EEE", Locale.getDefault())
@@ -634,6 +680,7 @@ class TaskViewModel(
         _selectedStatus.value = null
         _selectedRecurrence.value = null
         _selectedCategory.value = null
+        _selectedPriority.value = null
         val now = Calendar.getInstance()
         _selectedMonth.value = now.get(Calendar.MONTH)
         _selectedYear.value = now.get(Calendar.YEAR)
@@ -645,6 +692,10 @@ class TaskViewModel(
 
     fun setRecurrenceFilter(recurrence: RecurrenceType?) {
         _selectedRecurrence.value = recurrence
+    }
+
+    fun setPriorityFilter(priority: Priority?) {
+        _selectedPriority.value = priority
     }
 
     fun setCategoryTimeFilter(filter: String) {

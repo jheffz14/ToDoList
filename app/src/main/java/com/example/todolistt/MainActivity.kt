@@ -39,6 +39,9 @@ import android.provider.Settings
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import android.widget.Toast
+import android.speech.RecognizerIntent
+import androidx.activity.result.ActivityResultLauncher
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private val database by lazy { TaskDatabase.getDatabase(this) }
@@ -51,6 +54,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private var initialTaskIdFromWidget = mutableStateOf<Int?>(null)
+    private var showAddTaskDialog = mutableStateOf(false)
+    private var voiceTaskTitle = mutableStateOf<String?>(null)
+    private var voiceTaskPriority = mutableStateOf<com.example.todolistt.data.local.Priority?>(null)
+    private var voiceTaskDate = mutableStateOf<Long?>(null)
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -58,6 +65,66 @@ class MainActivity : ComponentActivity() {
         if (!isGranted) {
             // Explain to the user that notifications are needed
         }
+    }
+
+    private val speechRecognizerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data = result.data
+            val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            val spokenText = results?.get(0)
+            if (!spokenText.isNullOrBlank()) {
+                parseVoiceInput(spokenText)
+                showAddTaskDialog.value = true
+            }
+        }
+    }
+
+    private fun parseVoiceInput(text: String) {
+        var cleanText = text
+        
+        // Priority Parsing
+        val priority = when {
+            text.contains("high priority", ignoreCase = true) || text.contains("important", ignoreCase = true) -> {
+                cleanText = cleanText.replace("high priority", "", ignoreCase = true).replace("important", "", ignoreCase = true)
+                com.example.todolistt.data.local.Priority.HIGH
+            }
+            text.contains("medium priority", ignoreCase = true) -> {
+                cleanText = cleanText.replace("medium priority", "", ignoreCase = true)
+                com.example.todolistt.data.local.Priority.MEDIUM
+            }
+            text.contains("low priority", ignoreCase = true) -> {
+                cleanText = cleanText.replace("low priority", "", ignoreCase = true)
+                com.example.todolistt.data.local.Priority.LOW
+            }
+            else -> null
+        }
+
+        // Date Parsing (Today/Tomorrow)
+        val calendar = java.util.Calendar.getInstance()
+        var date: Long? = null
+        
+        if (text.contains("today", ignoreCase = true)) {
+            cleanText = cleanText.replace("today", "", ignoreCase = true)
+            calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+            calendar.set(java.util.Calendar.MINUTE, 0)
+            calendar.set(java.util.Calendar.SECOND, 0)
+            calendar.set(java.util.Calendar.MILLISECOND, 0)
+            date = calendar.timeInMillis
+        } else if (text.contains("tomorrow", ignoreCase = true)) {
+            cleanText = cleanText.replace("tomorrow", "", ignoreCase = true)
+            calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+            calendar.set(java.util.Calendar.MINUTE, 0)
+            calendar.set(java.util.Calendar.SECOND, 0)
+            calendar.set(java.util.Calendar.MILLISECOND, 0)
+            date = calendar.timeInMillis
+        }
+
+        voiceTaskTitle.value = cleanText.trim().replaceFirstChar { it.uppercase() }
+        voiceTaskPriority.value = priority
+        voiceTaskDate.value = date
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,6 +154,10 @@ class MainActivity : ComponentActivity() {
                 ) {
                     var currentScreen by remember { mutableStateOf("tasks") }
                     val taskIdToOpen by initialTaskIdFromWidget
+                    var openAddTask by showAddTaskDialog
+                    val voiceTitle by voiceTaskTitle
+                    val voicePriority by voiceTaskPriority
+                    val voiceDate by voiceTaskDate
                     
                     when (currentScreen) {
                         "tasks" -> {
@@ -96,12 +167,23 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToHistory = { currentScreen = "history" },
                                 onNavigateToDashboard = { currentScreen = "dashboard" },
                                 onNavigateToArchive = { currentScreen = "archive" },
-                                initialTaskId = taskIdToOpen
+                                initialTaskId = taskIdToOpen,
+                                initialAddTask = openAddTask,
+                                voiceTitle = voiceTitle,
+                                voicePriority = voicePriority,
+                                voiceDate = voiceDate,
+                                onVoiceComplete = { 
+                                    voiceTaskTitle.value = null
+                                    voiceTaskPriority.value = null
+                                    voiceTaskDate.value = null
+                                },
+                                onStartVoiceInput = { startVoiceInput() }
                             )
                             // Clear it after passing to TaskScreen
-                            if (taskIdToOpen != null) {
+                            if (taskIdToOpen != null || openAddTask) {
                                 LaunchedEffect(Unit) {
                                     initialTaskIdFromWidget.value = null
+                                    showAddTaskDialog.value = false
                                 }
                             }
                         }
@@ -143,6 +225,9 @@ class MainActivity : ComponentActivity() {
         if (taskId != -1) {
             initialTaskIdFromWidget.value = taskId
         }
+        if (intent?.action == "ADD_TASK") {
+            showAddTaskDialog.value = true
+        }
     }
 
     private fun checkPermissions() {
@@ -181,6 +266,19 @@ class MainActivity : ComponentActivity() {
                 }
                 startActivity(intent)
             }
+        }
+    }
+
+    private fun startVoiceInput() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak the task title")
+        }
+        try {
+            speechRecognizerLauncher.launch(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Voice recognition not available", Toast.LENGTH_SHORT).show()
         }
     }
 }
