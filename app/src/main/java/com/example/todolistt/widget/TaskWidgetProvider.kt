@@ -20,9 +20,11 @@ class TaskWidgetProvider : AppWidgetProvider() {
         val views = RemoteViews(context.packageName, R.layout.widget_layout)
         
         // Intent to open the app
-        val intent = Intent(context, MainActivity::class.java)
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
         val pendingIntent = PendingIntent.getActivity(
-            context, 0, intent, 
+            context, 10, intent, 
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         views.setOnClickPendingIntent(R.id.widget_title, pendingIntent)
@@ -36,10 +38,11 @@ class TaskWidgetProvider : AppWidgetProvider() {
 
         // Template for item clicks - MUST be FLAG_MUTABLE to allow fill-in intents to work
         val clickIntent = Intent(context, MainActivity::class.java).apply {
-            action = "OPEN_TASK" // Add a specific action to ensure uniqueness
+            action = "OPEN_TASK"
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val clickPendingIntent = PendingIntent.getActivity(
-            context, 0, clickIntent,
+            context, 11, clickIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
         views.setPendingIntentTemplate(R.id.widget_list, clickPendingIntent)
@@ -58,9 +61,10 @@ class TaskWidgetProvider : AppWidgetProvider() {
         // Quick add button
         val addIntent = Intent(context, MainActivity::class.java).apply {
             action = "ADD_TASK"
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val addPendingIntent = PendingIntent.getActivity(
-            context, 1, addIntent,
+            context, 12, addIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         views.setOnClickPendingIntent(R.id.widget_add, addPendingIntent)

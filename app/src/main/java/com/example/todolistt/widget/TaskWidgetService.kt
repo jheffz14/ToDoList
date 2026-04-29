@@ -77,6 +77,7 @@ class TaskWidgetFactory(private val context: Context) : RemoteViewsService.Remot
         // Create a fill-in intent for the item click. 
         // We pass the task ID which can be used to open the specific task.
         val fillInIntent = Intent().apply {
+            action = "OPEN_TASK"
             putExtra("TASK_ID", task.id)
             // Setting a data URI helps distinguish intents for different items
             data = android.net.Uri.parse("task://${task.id}")
